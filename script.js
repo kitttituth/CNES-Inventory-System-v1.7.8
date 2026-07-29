@@ -63,6 +63,12 @@ function cnesApp() {
 
         // ดึงข้อมูลล่าสุดจากหลังบ้านมาปรับปรุงคลังในเครื่อง เพื่อให้มือถือและ PC/Notebook ซิงก์ข้อมูลชุดเดียวกัน [ข้อ 1]
         async fetchServerData() {
+            // หากมีการบันทึกข้อมูลในเครื่องที่ยังไม่ได้ซิงก์สำเร็จกับเซิร์ฟเวอร์ ให้ข้ามการดึงข้อมูลทับเพื่อป้องกันข้อมูลเด้งกลับ
+            if (localStorage.getItem('cnes_v178_unsynced') === 'true') {
+                this.syncLocalToServer();
+                return;
+            }
+
             try {
                 const res = await fetch('/api/data');
                 if (res.ok) {
@@ -78,11 +84,33 @@ function cnesApp() {
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
                         localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
+                        localStorage.setItem('cnes_v178_unsynced', 'false');
                     }
                 }
             } catch (err) {
                 console.log("เซิร์ฟเวอร์หลังบ้านออฟไลน์ รันระบบด้วยฐานข้อมูลเบราว์เซอร์ภายในชั่วคราว");
             }
+        },
+
+        // พยายามยิงข้อมูลในเครื่องไปอัปเดตเซิร์ฟเวอร์อีกครั้ง
+        syncLocalToServer() {
+            const payload = {
+                inventory: this.inventory,
+                logs: this.logs,
+                categories: this.categories,
+                units: this.units
+            };
+            fetch('/api/data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(res => {
+                if (res.ok) {
+                    localStorage.setItem('cnes_v178_unsynced', 'false');
+                }
+            }).catch(err => {
+                // เซิร์ฟเวอร์ยังออฟไลน์อยู่ ใช้ข้อมูลใน LocalStorage ต่อไป
+            });
         },
 
         // [2] ระบบตรวจสอบ Login
@@ -536,6 +564,7 @@ function cnesApp() {
             localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
             localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
             localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
+            localStorage.setItem('cnes_v178_unsynced', 'true');
 
             // ยิงข้อมูลอัปเดตไปบันทึกเขียนทับและเก็บบนไฟล์ data.json บนหลังบ้านเพื่อให้เครื่องอื่นดึงข้อมูลไปใช้ซิงก์กันได้
             const payload = {
@@ -548,6 +577,10 @@ function cnesApp() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
+            }).then(res => {
+                if (res.ok) {
+                    localStorage.setItem('cnes_v178_unsynced', 'false');
+                }
             }).catch(err => {
                 console.log("เซิร์ฟเวอร์ยังออฟไลน์อยู่ ดำเนินการเก็บบันทึกบน LocalStorage ของเครื่องนี้แทนชั่วคราว");
             });
