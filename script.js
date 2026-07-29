@@ -76,7 +76,7 @@ function cnesApp() {
                 const res = await fetch(API_URL);
                 if (res.ok) {
                     const serverData = await res.json();
-                    if (serverData && serverData.inventory) {
+                    if (serverData) {
                         this.inventory = serverData.inventory || [];
                         this.logs = serverData.logs || [];
                         this.categories = serverData.categories || [];
@@ -105,7 +105,6 @@ function cnesApp() {
             };
             fetch(API_URL, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             }).then(() => {
@@ -577,7 +576,6 @@ function cnesApp() {
             };
             fetch(API_URL, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             }).then(() => {
