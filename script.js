@@ -1,3 +1,6 @@
+// URL หลังบ้าน Google Sheets Web App
+const API_URL = 'https://script.google.com/macros/s/AKfycbxe6ixhD0tIux9YZhZZi9NYIe5OeADp5PGqSTIQpD-Cd3tde5rk4rdOaqVlMQN6zvUw/exec';
+
 function cnesApp() {
     return {
         // --- ระบบสิทธิ์และหน้าจอ ---
@@ -29,10 +32,10 @@ function cnesApp() {
             try { this.categories = JSON.parse(localStorage.getItem('cnes_v178_cats')) || []; } catch(e) { this.categories = []; }
             try { this.units = JSON.parse(localStorage.getItem('cnes_v178_units')) || []; } catch(e) { this.units = []; }
 
-            // ดึงข้อมูลหลักจากเซิร์ฟเวอร์
+            // ดึงข้อมูลหลักจาก Google Sheets
             await this.fetchServerData();
 
-            // ตั้งเวลารันซิงก์ข้อมูลกับเซิร์ฟเวอร์หลักอัตโนมัติทุกๆ 5 วินาที เพื่อให้อุปกรณ์ทุกเครื่อง (Mobile/PC) แสดงยอดตรงกันตลอดเวลา [ข้อ 1]
+            // ตั้งเวลารันซิงก์ข้อมูลกับ Google Sheets อัตโนมัติทุกๆ 5 วินาที เพื่อให้อุปกรณ์ทุกเครื่องแสดงยอดตรงกันตลอดเวลา [ข้อ 1]
             setInterval(() => {
                 this.fetchServerData();
             }, 5000);
@@ -61,16 +64,16 @@ function cnesApp() {
             }
         },
 
-        // ดึงข้อมูลล่าสุดจากหลังบ้านมาปรับปรุงคลังในเครื่อง เพื่อให้มือถือและ PC/Notebook ซิงก์ข้อมูลชุดเดียวกัน [ข้อ 1]
+        // ดึงข้อมูลล่าสุดจาก Google Sheets มาปรับปรุงคลังในเครื่อง เพื่อให้มือถือและ PC ซิงก์ข้อมูลชุดเดียวกัน
         async fetchServerData() {
-            // หากมีการบันทึกข้อมูลในเครื่องที่ยังไม่ได้ซิงก์สำเร็จกับเซิร์ฟเวอร์ ให้ข้ามการดึงข้อมูลทับเพื่อป้องกันข้อมูลเด้งกลับ
+            // หากมีการบันทึกข้อมูลในเครื่องที่ยังไม่ได้ซิงก์สำเร็จกับ Google Sheets ให้ข้ามการดึงข้อมูลทับ
             if (localStorage.getItem('cnes_v178_unsynced') === 'true') {
                 this.syncLocalToServer();
                 return;
             }
 
             try {
-                const res = await fetch('/api/data');
+                const res = await fetch(API_URL);
                 if (res.ok) {
                     const serverData = await res.json();
                     if (serverData) {
@@ -79,7 +82,7 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
-                        // ปรับปรุง LocalStorage ของเบราว์เซอร์เครื่องนี้ให้เท่ากับเซิร์ฟเวอร์หลักทันที
+                        // ปรับปรุง LocalStorage ของเบราว์เซอร์เครื่องนี้ให้เท่ากับ Google Sheets ทันที
                         localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
@@ -88,11 +91,11 @@ function cnesApp() {
                     }
                 }
             } catch (err) {
-                console.log("เซิร์ฟเวอร์หลังบ้านออฟไลน์ รันระบบด้วยฐานข้อมูลเบราว์เซอร์ภายในชั่วคราว");
+                console.log("เชื่อมต่อ Google Sheets ไม่สำเร็จ รันระบบด้วยฐานข้อมูลเบราว์เซอร์ภายในชั่วคราว");
             }
         },
 
-        // พยายามยิงข้อมูลในเครื่องไปอัปเดตเซิร์ฟเวอร์อีกครั้ง
+        // พยายามยิงข้อมูลในเครื่องไปอัปเดตลง Google Sheets อีกครั้ง
         syncLocalToServer() {
             const payload = {
                 inventory: this.inventory,
@@ -100,16 +103,16 @@ function cnesApp() {
                 categories: this.categories,
                 units: this.units
             };
-            fetch('/api/data', {
+            fetch(API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             }).then(res => {
                 if (res.ok) {
                     localStorage.setItem('cnes_v178_unsynced', 'false');
                 }
             }).catch(err => {
-                // เซิร์ฟเวอร์ยังออฟไลน์อยู่ ใช้ข้อมูลใน LocalStorage ต่อไป
+                // ยังเชื่อมต่อไม่ได้ ใช้ข้อมูลใน LocalStorage ต่อไป
             });
         },
 
@@ -548,16 +551,17 @@ function cnesApp() {
             this.inventory.forEach(item => {
                 csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.qty},${item.reserve_out || 0},"${item.unit}","${item.lastUpdated || '-'}"\n`;
             });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob Somethin = document.createElement('a');
+            const blobObj = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
+            link.href = URL.createObjectURL(blobObj);
             link.setAttribute('download', `CNES_Stock_Report.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         },
 
-        // ฟังก์ชันระบบเซฟและอัปเดตข้อมูลทับร่วมกันลงในเบราว์เซอร์ และเก็บเป็น data.json บนเซิร์ฟเวอร์ปลายทาง
+        // ฟังก์ชันระบบเซฟและอัปเดตข้อมูลทับร่วมกันลงในเบราว์เซอร์ และเก็บส่งไปที่ Google Sheets
         saveData() {
             // บันทึกสำรองลง LocalStorage (ภายในเบราว์เซอร์เครื่องปัจจุบัน)
             localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
@@ -566,23 +570,23 @@ function cnesApp() {
             localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
             localStorage.setItem('cnes_v178_unsynced', 'true');
 
-            // ยิงข้อมูลอัปเดตไปบันทึกเขียนทับและเก็บบนไฟล์ data.json บนหลังบ้านเพื่อให้เครื่องอื่นดึงข้อมูลไปใช้ซิงก์กันได้
+            // ยิงข้อมูลอัปเดตไปบันทึกบน Google Sheets เพื่อให้อุปกรณ์ทุกเครื่องดึงไปใช้ซิงก์กัน
             const payload = {
                 inventory: this.inventory,
                 logs: this.logs,
                 categories: this.categories,
                 units: this.units
             };
-            fetch('/api/data', {
+            fetch(API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
             }).then(res => {
                 if (res.ok) {
                     localStorage.setItem('cnes_v178_unsynced', 'false');
                 }
             }).catch(err => {
-                console.log("เซิร์ฟเวอร์ยังออฟไลน์อยู่ ดำเนินการเก็บบันทึกบน LocalStorage ของเครื่องนี้แทนชั่วคราว");
+                console.log("ยังบันทึกลง Google Sheets ไม่สำเร็จ ดำเนินการเก็บบันทึกบน LocalStorage แทนชั่วคราว");
             });
         },
 
