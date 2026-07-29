@@ -76,7 +76,7 @@ function cnesApp() {
                 const res = await fetch(API_URL);
                 if (res.ok) {
                     const serverData = await res.json();
-                    if (serverData) {
+                    if (serverData && serverData.inventory) {
                         this.inventory = serverData.inventory || [];
                         this.logs = serverData.logs || [];
                         this.categories = serverData.categories || [];
@@ -105,14 +105,13 @@ function cnesApp() {
             };
             fetch(API_URL, {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
-            }).then(res => {
-                if (res.ok) {
-                    localStorage.setItem('cnes_v178_unsynced', 'false');
-                }
+            }).then(() => {
+                localStorage.setItem('cnes_v178_unsynced', 'false');
             }).catch(err => {
-                // ยังเชื่อมต่อไม่ได้ ใช้ข้อมูลใน LocalStorage ต่อไป
+                // ยังบันทึกไม่ได้
             });
         },
 
@@ -551,7 +550,6 @@ function cnesApp() {
             this.inventory.forEach(item => {
                 csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.qty},${item.reserve_out || 0},"${item.unit}","${item.lastUpdated || '-'}"\n`;
             });
-            const blob = new Blob Somethin = document.createElement('a');
             const blobObj = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blobObj);
@@ -579,12 +577,11 @@ function cnesApp() {
             };
             fetch(API_URL, {
                 method: 'POST',
+                mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify(payload)
-            }).then(res => {
-                if (res.ok) {
-                    localStorage.setItem('cnes_v178_unsynced', 'false');
-                }
+            }).then(() => {
+                localStorage.setItem('cnes_v178_unsynced', 'false');
             }).catch(err => {
                 console.log("ยังบันทึกลง Google Sheets ไม่สำเร็จ ดำเนินการเก็บบันทึกบน LocalStorage แทนชั่วคราว");
             });
