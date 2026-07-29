@@ -4,16 +4,17 @@ const path = require('path');
 const app = express();
 const PORT = 3000;
 
-// ใส่ URL ของ Google Apps Script Web App ที่ได้จากการ Deploy ที่นี่
-const GOOGLE_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxe6ixhD0tIux9YZhZZi9NYIe5OeADp5PGqSTIQpD-Cd3tde5rk4rdOaqVlMQN6zvUw/exec';
+app.use(express.json());
 
-app.use(express.json({ limit: '50mb' }));
+// บริการและรันไฟล์หน้าบ้าน (index.html, script.js, style.css) จากที่ตั้งปัจจุบัน
 app.use(express.static(__dirname));
 
 const DATA_FILE = path.join(__dirname, 'data.json');
 
-function readLocalData() {
+// ตรวจสอบและดึงข้อมูลจากไฟล์ data.json กรณีไม่พบไฟล์จะสร้างตัวตั้งต้นมาตรฐานให้อัตโนมัติทันที
+function readData() {
     if (!fs.existsSync(DATA_FILE)) {
+        // ชุดข้อมูลเริ่มต้นเขียนทับลงเซิร์ฟเวอร์เพื่อซิงก์ข้อมูลไปใช้ร่วมกันได้ทุกเครื่อง
         const defaultData = {
             inventory: [],
             logs: [],
@@ -36,50 +37,22 @@ function readLocalData() {
     }
 }
 
-// REST API เพื่อดึงข้อมูล (ดึงจาก Google Sheet ถ้ามี URL หากไม่มีจะดึงจาก local data.json)
-app.get('/api/data', async (req, res) => {
-    if (GOOGLE_SHEET_URL && !GOOGLE_SHEET_URL.includes('YOUR_SCRIPT_ID_HERE')) {
-        try {
-            const response = await fetch(GOOGLE_SHEET_URL);
-            if (response.ok) {
-                const sheetData = await response.json();
-                // บันทึกสำรองลง local data.json
-                fs.writeFileSync(DATA_FILE, JSON.stringify(sheetData, null, 4), 'utf8');
-                return res.json(sheetData);
-            }
-        } catch (err) {
-            console.error("ไม่สามารถดึงข้อมูลจาก Google Sheet ได้ กำลังใช้ข้อมูลสำรองในเครื่อง:", err.message);
-        }
-    }
-    res.json(readLocalData());
+// REST API เพื่อให้เบราว์เซอร์ฝั่งอื่นดึงค่าหลักไปใช้ซิงก์กัน
+app.get('/api/data', (req, res) => {
+    res.json(readData());
 });
 
-// REST API เพื่อเขียนบันทึกข้อมูล (ส่งไปเขียนลง Google Sheet และบันทึก local data.json พร้อมกัน)
-app.post('/api/data', async (req, res) => {
+// REST API เพื่อเขียนข้อมูลทับกลับมาที่เซิร์ฟเวอร์และบันทึกข้อมูลหลักร่วมกัน
+app.post('/api/data', (req, res) => {
     const { inventory, logs, categories, units } = req.body;
     const data = { inventory, logs, categories, units };
-    
-    // บันทึกลง local data.json
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 4), 'utf8');
+        res.json({ success: true });
     } catch (err) {
         console.error("เกิดข้อผิดพลาดรันไทม์บันทึกข้อมูลทับ data.json:", err);
+        res.status(500).json({ error: "ล้มเหลวในการเขียนบันทึกไฟล์ออโต้บนฮาร์ดดิสก์เซิร์ฟเวอร์" });
     }
-
-    // ส่งไปซิงก์บันทึกลง Google Sheet
-    if (GOOGLE_SHEET_URL && !GOOGLE_SHEET_URL.includes('YOUR_SCRIPT_ID_HERE')) {
-        try {
-            await fetch(GOOGLE_SHEET_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-        } catch (err) {
-            console.error("เกิดข้อผิดพลาดในการส่งข้อมูลไปบันทึกลง Google Sheet:", err.message);
-        }
-    }
-
-    res.json({ success: true });
 });
 
 app.listen(PORT, () => {

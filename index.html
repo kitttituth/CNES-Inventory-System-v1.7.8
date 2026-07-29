@@ -12,10 +12,11 @@
 </head>
 <body class="bg-slate-50 font-sans antialiased text-slate-800" x-data="cnesApp()" x-init="initData()">
 
-    <!-- [1] หน้าจอระบุรหัส PIN เพื่อลงชื่อเข้าใช้ระบบ -->
+    <!-- [1] หน้าจอระบุรหัส PIN เพื่อลงชื่อเข้าใช้ระบบ (Login View ตามเงื่อนไขข้อที่ 2) -->
     <div x-show="!isLoggedIn" class="min-h-screen flex items-center justify-center bg-slate-950 p-4">
         <div class="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-100 p-8 space-y-6">
             <div class="text-center space-y-3">
+                <!-- 2. หน้า Login ให้ใช้ Logo และแสดงเวอชั่นของไฟล์ เช่น CNES Inventory System v1.7.8 -->
                 <img src="logo.png" alt="CNES Logo" class="mx-auto h-20 w-auto object-contain">
                 <p class="text-xs font-bold tracking-wider text-slate-500 uppercase">Christiani & Nielsen Energy Solutions</p>
                 <h1 class="text-xl font-black text-slate-800">CNES Inventory System v1.7.8</h1>
@@ -36,12 +37,13 @@
     <!-- [2] ส่วนหน้าจัดการระบบคลังสินค้าหลักหลังล็อกอินสำเร็จ -->
     <div x-show="isLoggedIn" class="min-h-screen flex flex-col md:flex-row">
         
-        <!-- Mobile Top Header Bar -->
+        <!-- Mobile Top Header Bar (แสดงปุ่ม Hamburger ควบคุมเฉพาะบนหน้าจอมือถือ/แท็บเล็ต) -->
         <header class="bg-slate-950 text-white flex items-center justify-between p-4 md:hidden fixed top-0 left-0 right-0 z-40 shadow-md">
+            <!-- 1. ใช้ Logo และคำใต้ภาพ Christiani & Nielsen Energy Solutions เสมอ ถ้าใช้เป็นหัว -->
             <div class="flex items-center space-x-2">
                 <img src="logo.png" alt="CNES Logo" class="h-8 w-auto object-contain">
                 <div class="text-left">
-                    <p class="text-[10px] font-black tracking-widest text-white leading-none">CNES STOCK v1.7.8</p>
+                    <p class="text-[10px] font-black tracking-widest text-white leading-none">CNES STOCK</p>
                     <span class="text-[8px] text-slate-400 block font-semibold leading-none mt-0.5">Christiani & Nielsen Energy Solutions</span>
                 </div>
             </div>
@@ -52,11 +54,12 @@
             </button>
         </header>
 
-        <!-- แถบเมนูด้านข้าง (Sidebar) -->
+        <!-- แถบเมนูด้านข้าง (Sidebar) รองรับการเปิดบน PC/Notebook/Tablet/Phone โดยไม่เปลี่ยนโครงสร้าง UI (ข้อที่ 6) -->
         <aside class="w-64 bg-slate-950 text-white flex flex-col justify-between h-screen fixed left-0 top-0 z-50 transition-transform duration-300 md:translate-x-0"
                :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
             
             <div class="p-4 flex flex-col space-y-6">
+                <!-- 1. ใช้ Logo และคำใต้ภาพ Christiani & Nielsen Energy Solutions เสมอ เป็นหัวเมนูหลัก -->
                 <div class="flex flex-col items-center justify-center p-2 text-center border-b border-slate-900 pb-4">
                     <img src="logo.png" alt="CNES Logo" class="h-14 w-auto object-contain">
                     <span class="text-[9px] font-black tracking-wider text-slate-400 mt-2 uppercase block">Christiani & Nielsen Energy Solutions</span>
@@ -74,7 +77,10 @@
                 </nav>
             </div>
 
+            <!-- ส่วนล่างสุดของแถบ Sidebar: ย้าย Logs และแสดงคู่มือการกรอกพัสดุตามระดับสิทธิ์ -->
             <div class="p-4 border-t border-slate-900 space-y-3">
+                
+                <!-- 4. ย้าย Log มาไว้ซ้ายล่าง (ตำแหน่งเหนือแผงปุ่ม Settings) -->
                 <button @click="page = 'logs'; sidebarOpen = false" :class="page === 'logs' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-900'" class="w-full flex items-center justify-between px-4 py-3 rounded-lg text-left text-sm transition-colors">
                     <span class="flex items-center space-x-3">
                         <span x-text="t('📋 Transaction Logs', '📋 ประวัติประมวลผล (Logs)')"></span>
@@ -84,12 +90,14 @@
                     </template>
                 </button>
                 
+                <!-- ซ่อนปุ่ม Settings สำหรับ Role User [ข้อ 2] -->
                 <template x-if="userRole === 'admin'">
                     <button @click="page = 'settings'; sidebarOpen = false" :class="page === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-900'" class="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left text-sm transition-colors">
                         <span x-text="t('⚙️ System Settings', '⚙️ ตั้งค่าคลังหลัก')"></span>
                     </button>
                 </template>
 
+                <!-- 5. ปุ่ม Avatar สิทธิ์และหน้าต่างแสดงคู่มือช่วยเหลือระบบ -->
                 <div class="pt-3 border-t border-slate-900 flex items-center justify-between">
                     <button @click="userModalOpen = true; sidebarOpen = false" class="flex items-center space-x-3 text-left hover:opacity-85 transition-opacity" title="เปิดดูคู่มือช่วยเหลือสำหรับพนักงาน">
                         <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-black text-sm border-2 border-slate-800 shadow">
@@ -97,7 +105,7 @@
                         </div>
                         <div>
                             <p class="text-xs font-bold leading-tight" x-text="userRole === 'admin' ? 'Admin CNES' : 'User CNES'"></p>
-                            <span class="text-[10px] text-slate-400 font-semibold underline decoration-blue-500">📖 คู่มือช่วยเหลือ v1.7.8</span>
+                            <span class="text-[10px] text-slate-400 font-semibold underline decoration-blue-500">📖 คู่มือช่วยเหลือ</span>
                         </div>
                     </button>
                     <button @click="logout()" class="text-slate-400 hover:text-red-400 transition-colors" title="ออกจากระบบ">
@@ -107,6 +115,7 @@
             </div>
         </aside>
 
+        <!-- ฉากหลังสีทึบจางเพื่อรองรับความเสถียรบนสไลด์หน้าจอมือถือและแท็บเล็ต (ข้อที่ 6) -->
         <div x-show="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/60 z-40 md:hidden" x-transition></div>
 
         <!-- แผงหลักเนื้อหาด้านขวา (Main Panel) -->
@@ -117,11 +126,12 @@
                 <div x-show="page === 'dashboard'" class="space-y-6">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
+                            <!-- 1. ใช้ Logo และคำใต้ภาพ Christiani & Nielsen Energy Solutions เสมอ เมื่อแสดงเป็นหัวงาน -->
                             <div class="flex items-center space-x-3 mb-2">
                                 <img src="logo.png" alt="CNES Logo" class="h-10 w-auto object-contain">
                                 <div>
                                     <h2 class="text-xl font-black text-slate-800" x-text="t('📊 Inventory Dashboard', '📊 แดชบอร์ดตรวจสอบวัสดุอุปกรณ์')"></h2>
-                                    <p class="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Christiani & Nielsen Energy Solutions (v1.7.8)</p>
+                                    <p class="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Christiani & Nielsen Energy Solutions</p>
                                 </div>
                             </div>
                         </div>
@@ -148,6 +158,7 @@
                                                 <p class="font-bold text-slate-800 text-sm" x-text="item.name"></p>
                                                 <p class="text-xs text-slate-400" x-text="'รุ่น: ' + item.model"></p>
                                                 
+                                                <!-- 3. เพิ่มการแสดงผลข้อมูล วันสินค้าเข้า และวันอัปเดตสต๊อกเบิกจ่ายนำเข้าย้อนหลัง บนแดชบอร์ดคลังหลัก -->
                                                 <div class="text-[10px] text-slate-400 space-y-0.5 bg-slate-50 p-1.5 rounded border border-slate-100">
                                                     <p x-text="'📅 วันสินค้าเข้า (Settings): ' + (item.createdDate || new Date(item.id).toLocaleString('th-TH'))"></p>
                                                     <p x-text="'🔄 วันอัปเดตของสต๊อก (เบิก/รับ): ' + (item.lastUpdated || '-')"></p>
@@ -211,6 +222,7 @@
                                 <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 relative flex flex-col gap-3">
                                     <button @click="removeRow(idx)" class="absolute top-2 right-2 text-red-500 hover:text-red-700 text-sm">✕</button>
                                     
+                                    <!-- ฟังก์ชันค้นหาสินค้าจากช่องใดช่องหนึ่งเชื่อมต่อสคริปต์กรอกแบบ Autofill อัตโนมัติ [ข้อ 3] -->
                                     <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-3 sm:pt-0 items-end">
                                         <div class="sm:col-span-3">
                                             <label class="block text-[10px] font-bold text-slate-500 mb-1">หรือเลือกจากรหัสในคลังหลัก</label>
@@ -364,14 +376,15 @@
                     </div>
                 </div>
 
-                <!-- [D] หน้าตั้งค่าและจัดการข้อมูลหลัก (Settings) แสดงผลเฉพาะสิทธิ์ Admin -->
+                <!-- [D] หน้าตั้งค่าและจัดการข้อมูลหลัก (Settings) แสดงผลเฉพาะสิทธิ์ Admin [ข้อ 2] -->
                 <div x-show="page === 'settings' && userRole === 'admin'" class="space-y-8">
                     <div class="border-b border-slate-200 pb-4">
+                        <!-- 1. ใช้ Logo และคำใต้ภาพ Christiani & Nielsen Energy Solutions เสมอ เมื่อแสดงเป็นหัวงาน -->
                         <div class="flex items-center space-x-3 mb-2">
                             <img src="logo.png" alt="CNES Logo" class="h-10 w-auto object-contain">
                             <div>
                                 <h2 class="text-xl font-black text-slate-800" x-text="t('⚙️ System Settings', '⚙️ ตั้งค่าและทะเบียนพัสดุคลังสินค้า')"></h2>
-                                <p class="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Christiani & Nielsen Energy Solutions (v1.7.8)</p>
+                                <p class="text-[10px] font-bold text-slate-400 tracking-wide uppercase">Christiani & Nielsen Energy Solutions</p>
                             </div>
                         </div>
                     </div>
@@ -507,17 +520,18 @@
         </main>
     </div>
 
-    <!-- [3] หน้าต่างแสดงคู่มือช่วยเหลือระบบแยกตามระดับสิทธิ์ -->
+    <!-- [3] หน้าต่างแสดงคู่มือช่วยเหลือระบบแยกตามระดับสิทธิ์ (ข้อที่ 5, 5.1, 5.2 - แสดงบทบาทสิทธิ์ที่ตนเองมีและต่ำกว่า) -->
     <div x-show="userModalOpen" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" x-transition>
         <div @click.away="userModalOpen = false" class="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
             <div class="bg-slate-950 text-white p-4 flex justify-between items-center">
                 <h3 class="font-bold text-sm flex items-center gap-2">
-                    📖 คู่มือการใช้งานระบบคลังสินค้า CNES (v1.7.8)
+                    📖 คู่มือการใช้งานระบบคลังสินค้า CNES
                 </h3>
                 <button @click="userModalOpen = false" class="text-slate-400 hover:text-white">✕</button>
             </div>
             <div class="p-6 space-y-6 max-h-[85vh] overflow-y-auto">
                 
+                <!-- 5.1 สำหรับ User ในการใช้การเบิกสินค้า/นำเข้าสินค้า (จะมองเห็นแค่ Role ตัวเองและระดับต่ำกว่า) -->
                 <div class="space-y-3">
                     <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
                         <span class="p-1 bg-blue-100 text-blue-700 rounded-lg text-xs font-bold">Role: User</span>
@@ -539,6 +553,7 @@
                     </div>
                 </div>
 
+                <!-- 5.2 สำหรับ Admin ในการควบคุม Settings และอนุมัติ (สิทธิ์แอดมินมองเห็นของสิทธิ์ตัวเองและสิทธิ์ User ที่ต่ำกว่าทั้งหมด) -->
                 <template x-if="userRole === 'admin'">
                     <div class="space-y-3 pt-2 border-t border-slate-100">
                         <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
@@ -572,9 +587,11 @@
         <template x-if="printData">
             <div class="flex flex-col h-full justify-between">
                 
+                <!-- แถบสีน้ำเงินตกแต่งด้านบนตามสี Logo [ข้อ 2] -->
                 <div class="w-full h-1.5 bg-[#20336B] rounded-full mb-3"></div>
 
                 <div class="space-y-6 flex-1">
+                    <!-- หัวกระดาษพิมพ์เอกสารภาษาไทย -->
                     <div class="flex justify-between items-center border-b-2 border-[#20336B] pb-4">
                         <div class="flex items-center space-x-4">
                             <img src="logo.png" alt="CNES Logo" class="h-14 w-auto object-contain">
@@ -626,22 +643,26 @@
                     </table>
                 </div>
 
+                <!-- ช่องลายเซ็น ดันลงล่างสุด + เว้นพื้นที่ว่างสำหรับเซ็นลายมือเหนือเส้นประ [ข้อ 1, 2] -->
                 <div class="mt-auto pt-6 space-y-4">
                     <div class="grid grid-cols-2 gap-12 text-xs text-center border-t border-slate-300 pt-6">
                         <div class="flex flex-col items-center justify-end">
                             <p class="font-bold text-slate-800">ผู้ทำรายการเบิก / รับสินค้า</p>
+                            <!-- เว้นพื้นที่ว่างสำหรับลงลายเซ็นจริงเหนือเส้นประ [ข้อ 1] -->
                             <div class="h-16"></div>
                             <p class="text-slate-400">................................................................</p>
                             <p class="font-semibold text-slate-800 mt-2" x-text="'( ' + printData.user + ' )'"></p>
                         </div>
                         <div class="flex flex-col items-center justify-end">
                             <p class="font-bold text-slate-800">ผู้ตรวจสอบการปรับสต๊อกสินค้า</p>
+                            <!-- เว้นพื้นที่ว่างสำหรับลงลายเซ็นจริงเหนือเส้นประ [ข้อ 1] -->
                             <div class="h-16"></div>
                             <p class="text-slate-400">................................................................</p>
                             <p class="font-semibold text-slate-800 mt-2">( เจ้าหน้าที่คุมคลังและอนุมัติระบบแอดมิน )</p>
                         </div>
                     </div>
 
+                    <!-- แถบสีน้ำเงินตกแต่งล่างสุดของเอกสารตามสี Logo [ข้อ 2] -->
                     <div class="w-full h-2 bg-[#20336B] rounded-full mt-4"></div>
                 </div>
                 
