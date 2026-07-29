@@ -1,0 +1,44 @@
+{
+    "inventory": [
+        {
+            "id": 1784457084982,
+            "itemCode": "PV -001",
+            "name": "JINKO",
+            "model": "JKM595-72HL4R-BDV",
+            "category": "PV Module",
+            "unit": "Panel",
+            "qty": 30,
+            "reserve_out": 0,
+            "reserve_in": 0
+        },
+        {
+            "id": 1784457105196,
+            "itemCode": "PV -002",
+            "name": "JINKO",
+            "model": "JKM635-78HL4-BDV",
+            "category": "PV Module",
+            "unit": "Panel",
+            "qty": 10000,
+            "reserve_out": 0,
+            "reserve_in": 0
+        }
+    ],
+    "logs": [],
+    "categories": [
+        "PV Module",
+        "Inverter",
+        "Cables",
+        "BOS",
+        "Tools",
+        "Mounting",
+        "Grounding"
+    ],
+    "units": [
+        "Panel",
+        "Pcs",
+        "Set",
+        "Roll",
+        "BOX",
+        "Meter"
+    ]
+}

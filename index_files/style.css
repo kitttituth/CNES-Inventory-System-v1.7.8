@@ -1,0 +1,56 @@
+/* การตั้งค่าฟอนต์และการแสดงผลเบื้องต้น */
+body {
+    font-family: 'Inter', 'Sarabun', sans-serif;
+    font-size: 0.85rem;
+}
+
+[x-cloak] { display: none !important; }
+
+/* แอนิเมชั่น */
+.animate-in {
+    animation: fadeIn 0.3s ease-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ตั้งค่าการพิมพ์ A4 */
+@media print {
+    @page { size: A4; margin: 12mm; }
+    body { background: white !important; }
+    .no-print { display: none !important; }
+
+    /* ซ่อน PrintArea หลักหากกำลังปริ้น Log และในทางกลับกัน */
+    body:not(.printing-log) #logPrintArea { display: none !important; }
+    body.printing-log main > div:not(#logPrintArea) { display: none !important; }
+    body.printing-log #logPrintArea { display: block !important; width: 100%; position: absolute; top: 0; left: 0; }
+
+    /* การตั้งค่าตารางพิมพ์ */
+    .print-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    .print-table th, .print-table td { border: 1px solid #000; padding: 6px 8px; font-size: 9pt; }
+    .print-table th { 
+        background-color: #f3f4f6 !important; 
+        -webkit-print-color-adjust: exact; /* สำหรับ Chrome, Safari, Edge */
+        print-color-adjust: exact;         /* มาตรฐานหลักช่วยลด Warning ใน VS Code */
+    }
+
+    /* ยืดหน้ากรอกฟอร์ม และหน้าพิมพ์ประวัติให้ความสูงขั้นต่ำเต็มหน้ากระดาษ A4 เพื่อผลักลายเซ็นลงไปล่างสุด */
+    #printArea, #logPrintArea > div {
+        min-height: 260mm;
+        display: flex !important;
+        flex-direction: column;
+        justify-content: space-between;
+        box-sizing: border-box;
+    }
+
+    /* ลายเซ็นให้อยู่ล่างสุดเสมอ (จัดวางตาม Flow ปกติ ไม่ใช้ fixed เพื่อเลี่ยงบั๊กตารางยาวทับซ้อนลายเซ็น) */
+    .print-footer { 
+        margin-top: auto;
+        display: flex !important;
+        justify-content: space-between;
+        padding: 0 40px;
+    }
+    .sig-box { width: 150px; text-align: center; }
+    .sig-line { border-bottom: 1px solid #000; margin-bottom: 5px; height: 35px; }
+}

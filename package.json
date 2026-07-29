@@ -1,0 +1,19 @@
+{
+  "dependencies": {
+    "@netlify/blobs": "^10.0.0",
+    "express": "^5.2.1",
+    "serverless-http": "^3.2.0"
+  },
+  "name": "cnes-inventory-system-v1.7.8",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
