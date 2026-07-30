@@ -8,8 +8,8 @@ function cnesApp() {
         userRole: '',
         loginPin: '',
         page: 'dashboard',
-        sidebarOpen: false, // เพิ่มเข้ามาเพื่อสลับเมนูบนอุปกรณ์เคลื่อนที่
-        userModalOpen: false, // เพิ่มเข้ามาเพื่อแสดงคู่มือตามระดับสิทธิ์ของผู้ใช้งาน
+        sidebarOpen: false, 
+        userModalOpen: false, 
         
         // --- ฐานข้อมูลหลัก ---
         categories: [],
@@ -18,29 +18,25 @@ function cnesApp() {
         logs: [],
         
         // --- ข้อมูลฟอร์มและการตั้งค่า ---
-        form: { user: '', site: '', txnType: 'ACTUAL', items: [] },
+        form: { user: '', site: '', actionDate: '', txnType: 'ACTUAL', items: [] },
         newCat: '',
         newUnit: '',
-        newItem: { itemCode: '', name: '', model: '', location: '', category: '', unit: '', qty: 0 }, // เพิ่มฟิลด์ location ในวัสดุใหม่
+        newItem: { itemCode: '', name: '', model: '', location: '', category: '', unit: '', qty: 0 }, 
         printData: null,
 
-        // [1] โหลดข้อมูลเริ่มต้น (อัปเกรดฐานข้อมูลสู่คีย์เซฟตี้ v1.7.8 ป้องกันจอขาว)
+        // [1] โหลดข้อมูลเริ่มต้น (อัปเกรดฐานข้อมูลสู่คีย์เซฟตี้ v1.7.8)
         async initData() {
-            // โหลดข้อมูลด่านแรกจาก LocalStorage ของผู้ใช้ในเครื่องเบราว์เซอร์ปัจจุบัน
             try { this.inventory = JSON.parse(localStorage.getItem('cnes_v178_inv')) || []; } catch(e) { this.inventory = []; }
             try { this.logs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) { this.logs = []; }
             try { this.categories = JSON.parse(localStorage.getItem('cnes_v178_cats')) || []; } catch(e) { this.categories = []; }
             try { this.units = JSON.parse(localStorage.getItem('cnes_v178_units')) || []; } catch(e) { this.units = []; }
 
-            // ดึงข้อมูลหลักจาก Google Sheets
             await this.fetchServerData();
 
-            // ตั้งเวลารันซิงก์ข้อมูลกับ Google Sheets อัตโนมัติทุกๆ 5 วินาที เพื่อให้อุปกรณ์ทุกเครื่องแสดงยอดตรงกันตลอดเวลา [ข้อ 1]
             setInterval(() => {
                 this.fetchServerData();
             }, 5000);
 
-            // ระบบสำรองคลังข้อมูลตัวเลือกในกรณีที่ถูกแอดมินล้างออกหมด (Dropdown Fallback)
             if (!this.categories || this.categories.length === 0) {
                 this.categories = ['PV Module', 'Inverter', 'Cables', 'BOS', 'Tools', 'Mounting', 'Grounding'];
             }
@@ -48,12 +44,9 @@ function cnesApp() {
                 this.units = ['Panel','Pcs', 'Set', 'Roll', 'BOX', 'Meter'];
             }
             
-            // รันการตรวจสอบการหมดอายุการจองสินค้า (30 วัน) อัตโนมัติในตอนโหลดข้อมูลเริ่มต้น
             this.checkExpiredReservations();
-            
             this.resetForm();
             
-            // ปรับไปเช็กเซสชันจาก sessionStorage เพื่อให้สามารถเปิดล็อกอิน User และ Admin ทิ้งไว้พร้อมกันคนละแท็บได้
             const savedRole = sessionStorage.getItem('cnes_v178_role');
             if(savedRole) { 
                 this.isLoggedIn = true; 
@@ -64,9 +57,7 @@ function cnesApp() {
             }
         },
 
-        // ดึงข้อมูลล่าสุดจาก Google Sheets มาปรับปรุงคลังในเครื่อง เพื่อให้มือถือและ PC ซิงก์ข้อมูลชุดเดียวกัน
         async fetchServerData() {
-            // หากมีการบันทึกข้อมูลในเครื่องที่ยังไม่ได้ซิงก์สำเร็จกับ Google Sheets ให้ข้ามการดึงข้อมูลทับ
             if (localStorage.getItem('cnes_v178_unsynced') === 'true') {
                 this.syncLocalToServer();
                 return;
@@ -82,7 +73,6 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
-                        // ปรับปรุง LocalStorage ของเบราว์เซอร์เครื่องนี้ให้เท่ากับ Google Sheets ทันที
                         localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
@@ -95,7 +85,6 @@ function cnesApp() {
             }
         },
 
-        // พยายามยิงข้อมูลในเครื่องไปอัปเดตลง Google Sheets อีกครั้ง
         syncLocalToServer() {
             const payload = {
                 inventory: this.inventory,
@@ -121,12 +110,10 @@ function cnesApp() {
             else { alert('PIN ไม่ถูกต้อง!'); return; }
             this.isLoggedIn = true;
 
-            // บังคับเปลี่ยนหน้าไป Dashboard หาก User เข้าล็อกอิน เพื่อป้องกันการมองเห็นหน้า Settings [ข้อ 2]
             if (this.userRole !== 'admin' && this.page === 'settings') {
                 this.page = 'dashboard';
             }
 
-            // บันทึกสถานะบทบาทแยกระดับ Tab ด้วย sessionStorage ทำให้เปิดสลับแท็บรัน User / Admin ได้อิสระ
             sessionStorage.setItem('cnes_v178_role', this.userRole);
             this.loginPin = '';
         },
@@ -137,14 +124,12 @@ function cnesApp() {
             sessionStorage.removeItem('cnes_v178_role');
         },
 
-        // กรองข้อมูลและจัดเรียงรหัสวัสดุจากน้อยไปมากแยกตามกลุ่มหมวดหมู่สินค้าในหน้า Dashboard
         getInventoryByCategory(cat) {
             return this.inventory
                 .filter(i => i.category === cat)
                 .sort((a, b) => a.itemCode.localeCompare(b.itemCode, undefined, { numeric: true, sensitivity: 'base' }));
         },
 
-        // ดึงรายการวัสดุเพื่อจัดเรียงลำดับตามพจนานุกรมในหน้าตาราง Settings
         getSortedInventory() {
             return this.inventory.slice().sort((a, b) => a.itemCode.localeCompare(b.itemCode, undefined, { numeric: true, sensitivity: 'base' }));
         },
@@ -153,9 +138,9 @@ function cnesApp() {
             return this.logs.filter(l => l.status === 'PENDING').length;
         },
 
-        // [3] ระบบจัดการตารางแบบฟอร์มเบิกจ่ายแบบพหุรายการ
         resetForm() {
-            this.form = { user: '', site: '', txnType: 'ACTUAL', items: [{ itemId: '', itemCode: '', name: '', model: '', qty: 0, unit: this.units[0] || 'Panel' }] };
+            const todayStr = new Date().toISOString().split('T')[0];
+            this.form = { user: '', site: '', actionDate: todayStr, txnType: 'ACTUAL', items: [{ itemId: '', itemCode: '', name: '', model: '', qty: 0, unit: this.units[0] || 'Panel' }] };
         },
 
         addRow() {
@@ -176,7 +161,6 @@ function cnesApp() {
             }
         },
 
-        // ฟังก์ชันระบบค้นหาและเชื่อมโยงข้อมูลวัสดุอัตโนมัติจากคำค้นหาในทุกช่อง (Code / Description / Model) [ข้อ 3]
         smartAutoFill(row, queryText) {
             if (!queryText || !queryText.trim()) {
                 row.itemId = '';
@@ -184,14 +168,12 @@ function cnesApp() {
             }
             const q = queryText.trim().toUpperCase();
 
-            // 1. ค้นหาแบบตรงตัวก่อน (Exact Match)
             let master = this.inventory.find(i => 
                 (i.itemCode && i.itemCode.toUpperCase() === q) ||
                 (i.name && i.name.toUpperCase() === q) ||
                 (i.model && i.model.toUpperCase() === q)
             );
 
-            // 2. หากไม่เจอ ให้ค้นหาแบบคำย่อย/ส่วนหนึ่งของข้อความ (Partial Match)
             if (!master && q.length >= 2) {
                 master = this.inventory.find(i => 
                     (i.itemCode && i.itemCode.toUpperCase().includes(q)) ||
@@ -207,7 +189,7 @@ function cnesApp() {
                 row.model = master.model;
                 row.unit = master.unit;
             } else {
-                row.itemId = ''; // หากไม่พบ สามารถให้สิทธิ์คีย์แมนนวลต่อได้
+                row.itemId = '';
             }
         },
 
@@ -223,9 +205,7 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // [4] การบันทึกส่งเรื่องร้องขอเบิกจ่ายวัสดุอุปกรณ์
         submitTransaction() {
-            // ปรับแต่งการตรวจสอบข้อมูล: ยินยอมให้สามารถพิมพ์ระบุรายการที่ไม่มีในระบบสต๊อกหลักส่งอนุมัติได้
             const invalid = this.form.items.some(i => {
                 const codeFilled = i.itemCode && i.itemCode.trim();
                 const nameFilled = i.name && i.name.trim();
@@ -233,11 +213,10 @@ function cnesApp() {
                 return !codeFilled || !nameFilled || !qtyValid;
             });
 
-            if (!this.form.user || invalid) {
-                alert('กรุณากรอกชื่อผู้เบิก รหัสวัสดุ ชื่อวัสดุ และจำนวนให้ถูกต้องครบถ้วน!'); return;
+            if (!this.form.user || !this.form.actionDate || invalid) {
+                alert('กรุณากรอกชื่อผู้เบิก วันที่รับ/เบิกจริง รหัสวัสดุ ชื่อวัสดุ และจำนวนให้ถูกต้องครบถ้วน!'); return;
             }
 
-            // จัดการข้อมูลไอเทมที่กรอกเข้ามาด้วยตนเองโดยสร้าง ID ชั่วคราว และดึงหน่วยนับพื้นฐานเพื่อความปลอดภัยของสต๊อก
             this.form.items.forEach((item, idx) => {
                 if (!item.itemId) {
                     item.itemId = `TEMP-${Date.now()}-${idx}`;
@@ -247,9 +226,19 @@ function cnesApp() {
                 }
             });
 
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const siteClean = (this.form.site || 'SITE').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const siteCode = siteClean.substring(0, 6) || 'GEN';
+            const seq = String(this.logs.length + 1).padStart(3, '0');
+            const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
+
             this.logs.unshift({
-                id: Date.now(),
+                id: customId,
                 timestamp: new Date().toLocaleString('th-TH'),
+                actionDate: this.form.actionDate, 
                 type: this.page.toUpperCase(),
                 txnType: this.form.txnType,
                 status: 'PENDING',
@@ -261,22 +250,18 @@ function cnesApp() {
             });
 
             this.saveData();
-            alert('บันทึกสำเร็จ! กรุณารอ Admin อนุมัติในหน้า Logs');
-            this.resetForm(); // เคลียร์ฟอร์มให้สะอาดเพื่อรองรับการคีย์ข้อมูลในครั้งถัดไป
+            alert(`บันทึกสำเร็จ! รหัสอ้างอิง: ${customId} กรุณารอ Admin อนุมัติในหน้า Logs`);
+            this.resetForm();
             this.page = 'logs';
         },
 
-        // [5] ฟังก์ชันตรวจสอบและอนุมัติยอดสินค้าคลังโดยแอดมิน
         approveLog(logId) {
-            const log = this.logs.find(l => l.id === logId);
+            const log = this.logs.find(l => l.id == logId);
             if(!log) return;
 
             if (log.type === 'OUT' && log.txnType === 'ACTUAL') {
                 for (let row of log.items) {
-                    // หากเป็นรายการคีย์เขียนมาเองข้างนอก จะไม่มีผลต่อยอดคงคลังหลักเพื่อความปลอดภัย
-                    if (row.itemId && row.itemId.toString().startsWith('TEMP-')) continue;
-                    
-                    const inv = this.inventory.find(i => i.id == row.itemId);
+                    const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                     if (inv && inv.qty < row.qty) {
                         alert(`ไม่สามารถอนุมัติได้: วัสดุ ${row.itemCode} ในสต๊อกไม่พอ!`); 
                         return;
@@ -284,14 +269,12 @@ function cnesApp() {
                 }
             }
 
-            const nowStr = new Date().toLocaleString('th-TH'); // วันเวลาที่ทำธุรกรรมจริงสำเร็จ
+            const nowStr = new Date().toLocaleString('th-TH');
 
             log.items.forEach(row => {
-                if (row.itemId && row.itemId.toString().startsWith('TEMP-')) return;
-                
-                const inv = this.inventory.find(i => i.id == row.itemId);
+                const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                 if (inv) {
-                    const q = parseInt(row.qty);
+                    const q = parseInt(row.qty) || 0;
                     if (log.type === 'OUT') {
                         if (log.txnType === 'ACTUAL') inv.qty -= q;
                         else inv.reserve_out = (inv.reserve_out || 0) + q;
@@ -299,28 +282,23 @@ function cnesApp() {
                         if (log.txnType === 'ACTUAL') inv.qty += q;
                         else inv.reserve_in = (inv.reserve_in || 0) + q;
                     }
-                    // อัปเดตวันที่มีการเคลื่อนไหวสินค้า
                     inv.lastUpdated = nowStr;
                 }
             });
 
             log.status = 'APPROVED';
-            log.approvedAt = Date.now(); // เก็บเวลาที่กดอนุมัติสำหรับใช้ระบบนับถอยหลัง 30 วัน
+            log.approvedAt = Date.now();
             this.saveData();
             alert('อนุมัติและปรับปรุงสต๊อกเรียบร้อยแล้ว');
         },
 
-        // ฟังก์ชันระบบสลับจากเอกสารจองสินค้า (RESERVE) เป็นเบิกจ่ายจริง (ACTUAL)
         confirmActual(logId) {
-            const log = this.logs.find(l => l.id === logId);
+            const log = this.logs.find(l => l.id == logId);
             if (!log) return;
 
-            // ตรวจสอบสต๊อกจริงก่อนว่าเพียงพอสำหรับการเบิกจ่ายจริงหรือไม่
             if (log.type === 'OUT') {
                 for (let row of log.items) {
-                    if (row.itemId && row.itemId.toString().startsWith('TEMP-')) continue;
-                    
-                    const inv = this.inventory.find(i => i.id == row.itemId);
+                    const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                     if (inv && inv.qty < row.qty) {
                         alert(`ไม่สามารถเบิกจ่ายจริงได้: วัสดุ ${row.itemCode} ในสต๊อกไม่พอ!`); 
                         return;
@@ -330,13 +308,10 @@ function cnesApp() {
 
             const nowStr = new Date().toLocaleString('th-TH');
 
-            // คืนยอดจอง แล้วดำเนินการหัก/เพิ่มจำนวนในคลังสินค้าสต๊อกจริง
             log.items.forEach(row => {
-                if (row.itemId && row.itemId.toString().startsWith('TEMP-')) return;
-                
-                const inv = this.inventory.find(i => i.id == row.itemId);
+                const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                 if (inv) {
-                    const q = parseInt(row.qty);
+                    const q = parseInt(row.qty) || 0;
                     if (log.type === 'OUT') {
                         inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
                         inv.qty -= q;
@@ -344,7 +319,6 @@ function cnesApp() {
                         inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
                         inv.qty += q;
                     }
-                    // อัปเดตวันที่มีการเคลื่อนไหวสินค้าจริง
                     inv.lastUpdated = nowStr;
                 }
             });
@@ -354,36 +328,43 @@ function cnesApp() {
             alert('เปลี่ยนสถานะและปรับปรุงยอดเป็นการเบิกจ่าย/นำเข้าจริง เรียบร้อยแล้ว!');
         },
 
-        // ฟังก์ชันยกเลิกรายการเบิกจ่ายหรือการจองสินค้า (Cancel)
+        // [แก้ข้อ 2] ปรับปรุงระบบยกเลิกรายการ ค้นหาพัสดุแม่นยำด้วย ID หรือ Item Code และคืนยอดสต๊อกเดิมทันที
         cancelLog(logId) {
-            if (!confirm('ยืนยันการยกเลิกรายการนี้หรือไม่? สต๊อกทั้งหมดที่เกี่ยวข้องจะถูกปรับปรุงคืนค่าเดิม')) return;
-            const log = this.logs.find(l => l.id === logId);
+            if (this.userRole !== 'admin') {
+                alert('สิทธิ์ User ไม่สามารถยกเลิกรายการเบิก/รับ หรือสั่งจองได้ (สิทธิ์เฉพาะ Admin เท่านั้น)');
+                return;
+            }
+
+            const log = this.logs.find(l => l.id == logId);
             if (!log) return;
+
+            if (log.status === 'CANCELLED') {
+                alert('รายการนี้ถูกยกเลิกไปแล้ว');
+                return;
+            }
+
+            if (!confirm('ยืนยันการยกเลิกรายการนี้หรือไม่? สต๊อกทั้งหมดที่เกี่ยวข้องจะถูกปรับปรุงคืนค่าเดิม')) return;
 
             const nowStr = new Date().toLocaleString('th-TH');
 
-            // หากได้รับการอนุมัติ (APPROVED) ไปแล้ว ต้องคืนค่าปรับปรุงยอดก่อนยกเลิก
             if (log.status === 'APPROVED') {
                 log.items.forEach(row => {
-                    if (row.itemId && row.itemId.toString().startsWith('TEMP-')) return;
-                    
-                    const inv = this.inventory.find(i => i.id == row.itemId);
+                    const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                     if (inv) {
-                        const q = parseInt(row.qty);
+                        const q = parseInt(row.qty) || 0;
                         if (log.type === 'OUT') {
                             if (log.txnType === 'ACTUAL') {
                                 inv.qty += q; // คืนสต๊อกจริง
-                            } else {
-                                inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q); // คืนยอดจอง
+                            } else if (log.txnType === 'RESERVE') {
+                                inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q); // คืนยอดจองออก
                             }
-                        } else { // IN
+                        } else if (log.type === 'IN') {
                             if (log.txnType === 'ACTUAL') {
-                                inv.qty = Math.max(0, inv.qty - q); // คืนสต๊อกจริง
-                            } else {
-                                inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q); // คืนยอดจอง
+                                inv.qty = Math.max(0, inv.qty - q); // หักคืนสต๊อกจริงจากการรับเข้า
+                            } else if (log.txnType === 'RESERVE') {
+                                inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q); // คืนยอดจองเข้า
                             }
                         }
-                        // อัปเดตวันที่มีการยกเลิกและนำของคืนคลังสินค้า
                         inv.lastUpdated = nowStr;
                     }
                 });
@@ -394,7 +375,6 @@ function cnesApp() {
             alert('ยกเลิกรายการและคืนค่าปรับสต๊อกเรียบร้อยแล้ว');
         },
 
-        // ฟังก์ชันระบบสแกนตรวจสอบการจองสินค้าหมดอายุภายใน 30 วันนับจากวันที่อนุมัติ
         checkExpiredReservations() {
             let updated = false;
             const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
@@ -407,13 +387,10 @@ function cnesApp() {
                     if (now - approvedTime > thirtyDaysMs) {
                         log.status = 'EXPIRED';
 
-                        // ปรับลดยอดจองออกจากการคิดคำนวณในระบบและหน้า Dashboard
                         log.items.forEach(row => {
-                            if (row.itemId && row.itemId.toString().startsWith('TEMP-')) return;
-                            
-                            const inv = this.inventory.find(i => i.id == row.itemId);
+                            const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                             if (inv) {
-                                const q = parseInt(row.qty);
+                                const q = parseInt(row.qty) || 0;
                                 if (log.type === 'OUT') {
                                     inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
                                 } else {
@@ -432,28 +409,48 @@ function cnesApp() {
             }
         },
 
-        // [6] การจัดการและเก็บพรีวิวไฟล์บันทึกแนบเอกสาร PDF
+        // [แก้ข้อ 1] อัปโหลด PDF สำหรับ Logs
         uploadPDF(event, logId) {
+            const log = this.logs.find(l => l.id == logId);
+            if (!log) return;
+
+            if (log.pdfData && log.pdfData.indexOf('http') === 0) {
+                alert('รายการนี้เคยแนบไฟล์ PDF แล้ว ไม่สามารถแนบซ้ำได้ หากต้องการแนบใหม่ต้องไปลบข้อมูลใน Google Sheets ก่อน');
+                return;
+            }
+
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
             
             const reader = new FileReader();
             reader.onload = (e) => {
-                const log = this.logs.find(l => l.id === logId);
-                if (log) {
-                    log.pdfData = e.target.result;
-                    log.pdfName = file.name;
-                    this.saveData();
-                }
+                log.pdfData = e.target.result;
+                log.pdfName = file.name;
+                this.saveData();
+                alert('แนบไฟล์ PDF เรียบร้อยแล้ว (กำลังอัปโหลดขึ้น Google Drive เพื่อให้ดูย้อนหลังได้ตลอดเวลา)');
             };
             reader.readAsDataURL(file);
         },
 
         removePDF(logId) {
-            if(confirm('ลบไฟล์ PDF หรือไม่?')) {
-                const log = this.logs.find(l => l.id === logId);
-                if(log) { log.pdfData = null; log.pdfName = ''; this.saveData(); }
-            }
+            alert('ไม่สามารถลบไฟล์ PDF จากหน้าเว็บได้ หากต้องการแนบไฟล์ใหม่ กรุณาไปลบชื่อไฟล์ใน Google Sheets (แผ่น Logs คอลัมน์ PDF Name) ก่อนครับ');
+        },
+
+        uploadMaterialPDF(event, itemId) {
+            const item = this.inventory.find(i => i.id == itemId);
+            if (!item) return;
+
+            const file = event.target.files[0];
+            if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                item.poPdfData = e.target.result;
+                item.poPdfName = file.name;
+                this.saveData();
+                alert('แนบเอกสาร PO / ใบส่งของเรียบร้อยแล้ว');
+            };
+            reader.readAsDataURL(file);
         },
 
         printLogData(log) {
@@ -466,7 +463,6 @@ function cnesApp() {
             }, 500);
         },
 
-        // [7] ฟังก์ชันลงทะเบียนรหัสและแอดสินค้า Master Data เข้าสู่ระบฐานข้อมูลหลัก
         generateItemCode() {
             if(!this.newItem.category) return;
             const prefix = this.newItem.category.substring(0, 3).toUpperCase();
@@ -474,22 +470,27 @@ function cnesApp() {
             this.newItem.itemCode = `${prefix}-${String(count).padStart(3, '0')}`;
         },
 
+        // [แก้ข้อ 3] บันทึกจำนวนแรกเริ่มเมื่อลงทะเบียนวัสดุใหม่
         addMaterial() {
             if(!this.newItem.name || !this.newItem.itemCode) return alert('กรุณาระบุรหัสและชื่อวัสดุ!');
-            const nowStr = new Date().toLocaleString('th-TH'); // วันแรกเข้า
+            const nowStr = new Date().toLocaleString('th-TH');
+            const initQty = parseInt(this.newItem.qty) || 0;
             this.inventory.push({
                 id: Date.now(),
                 itemCode: this.newItem.itemCode.toUpperCase(),
                 name: this.newItem.name.toUpperCase(),
                 model: this.newItem.model.toUpperCase() || 'N/A',
-                location: (this.newItem.location || '').toUpperCase() || 'N/A', // เก็บบันทึกข้อมูลตำแหน่งจัดเก็บ
+                location: (this.newItem.location || '').toUpperCase() || 'N/A',
                 category: this.newItem.category,
                 unit: this.newItem.unit || this.units[0],
-                qty: parseInt(this.newItem.qty) || 0,
+                initialQty: initQty, // [ข้อ 3] บันทึกยอดแรกเริ่ม
+                qty: initQty,
                 reserve_out: 0,
                 reserve_in: 0,
-                lastUpdated: nowStr, // บันทึกวันแรกเข้าเป็นวันเวลาเริ่มต้น
-                createdDate: nowStr // บันทึกวันแรกเข้าคลังสินค้า เพื่อใช้ดึงข้อมูลย้อนหลังตามเงื่อนไขที่ 3
+                poPdfData: null,
+                poPdfName: '',
+                lastUpdated: nowStr,
+                createdDate: nowStr
             });
             this.newItem = { itemCode: '', name: '', model: '', location: '', category: '', unit: this.units[0], qty: 0 };
             this.saveData();
@@ -545,9 +546,9 @@ function cnesApp() {
         downloadCSV() {
             if (this.inventory.length === 0) return alert('ไม่มีข้อมูลสำหรับส่งออก!');
             let csv = '\uFEFF'; 
-            csv += 'Code (รหัส),Material (ชื่อวัสดุ),Model (รุ่น),Location (ตำแหน่งจัดเก็บ),Category (หมวดหมู่),Balance (คงเหลือ),Reserve (จอง),Unit (หน่วย),Last Updated (อัปเดตล่าสุดเมื่อ)\n';
+            csv += 'Code (รหัส),Material (ชื่อวัสดุ),Model (รุ่น),Location (ตำแหน่งจัดเก็บ),Category (หมวดหมู่),Initial Qty (ยอดแรกเริ่ม),Balance (คงเหลือปัจจุบัน),Reserve (จอง),Unit (หน่วย),Created Date (วันแรกเข้า),Last Updated (อัปเดตล่าสุดเมื่อ)\n';
             this.inventory.forEach(item => {
-                csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.qty},${item.reserve_out || 0},"${item.unit}","${item.lastUpdated || '-'}"\n`;
+                csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.initialQty !== undefined ? item.initialQty : item.qty},${item.qty},${item.reserve_out || 0},"${item.unit}","${item.createdDate || '-'}","${item.lastUpdated || '-'}"\n`;
             });
             const blobObj = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -558,16 +559,13 @@ function cnesApp() {
             document.body.removeChild(link);
         },
 
-        // ฟังก์ชันระบบเซฟและอัปเดตข้อมูลทับร่วมกันลงในเบราว์เซอร์ และเก็บส่งไปที่ Google Sheets
         saveData() {
-            // บันทึกสำรองลง LocalStorage (ภายในเบราว์เซอร์เครื่องปัจจุบัน)
             localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
             localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
             localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
             localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
             localStorage.setItem('cnes_v178_unsynced', 'true');
 
-            // ยิงข้อมูลอัปเดตไปบันทึกบน Google Sheets เพื่อให้อุปกรณ์ทุกเครื่องดึงไปใช้ซิงก์กัน
             const payload = {
                 inventory: this.inventory,
                 logs: this.logs,
