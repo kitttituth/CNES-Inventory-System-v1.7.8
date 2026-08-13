@@ -17,8 +17,15 @@ function cnesApp() {
         inventory: [],
         logs: [],
         
+        // --- [ข้อ 3] โครงสร้างผู้ลงนามแยกตาม Project / O&M และซิงก์ Google Sheets ---
+        signatories: {
+            project: { inspector: 'ผู้ตรวจสอบสินค้า (Project)', approver: 'ผู้อนุมัติ (Project)' },
+            om: { inspector: 'ผู้ตรวจสอบสินค้า (O&M)', approver: 'ผู้อนุมัติ (O&M)' }
+        },
+
         // --- ข้อมูลฟอร์มและการตั้งค่า ---
-        form: { user: '', site: '', actionDate: '', txnType: 'ACTUAL', items: [] },
+        // [ข้อ 1,2] ตัด inspector/approver ออกจากหน้าฟอร์ม นำเข้าเฉพาะ purpose ('Project' / 'O&M')
+        form: { user: '', site: '', actionDate: '', txnType: 'ACTUAL', purpose: 'Project', items: [] },
         newCat: '',
         newUnit: '',
         newItem: { itemCode: '', name: '', model: '', location: '', category: '', unit: '', qty: 0 }, 
@@ -30,6 +37,12 @@ function cnesApp() {
             try { this.logs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) { this.logs = []; }
             try { this.categories = JSON.parse(localStorage.getItem('cnes_v178_cats')) || []; } catch(e) { this.categories = []; }
             try { this.units = JSON.parse(localStorage.getItem('cnes_v178_units')) || []; } catch(e) { this.units = []; }
+            
+            // [ข้อ 3] โหลดข้อมูลการตั้งค่าผู้ลงนามจาก LocalStorage
+            try { 
+                const savedSig = JSON.parse(localStorage.getItem('cnes_v178_signatories'));
+                if (savedSig) this.signatories = savedSig;
+            } catch(e) {}
 
             await this.fetchServerData();
 
@@ -73,6 +86,12 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
+                        // [ข้อ 3] ดึงข้อมูลรายชื่อผู้ลงนามจาก Google Sheets
+                        if (serverData.signatories) {
+                            this.signatories = serverData.signatories;
+                            localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
+                        }
+
                         localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
@@ -90,7 +109,8 @@ function cnesApp() {
                 inventory: this.inventory,
                 logs: this.logs,
                 categories: this.categories,
-                units: this.units
+                units: this.units,
+                signatories: this.signatories // [ข้อ 3] ซิงก์รายชื่อผู้ลงนามขึ้น Google Sheets
             };
             fetch(API_URL, {
                 method: 'POST',
@@ -140,7 +160,14 @@ function cnesApp() {
 
         resetForm() {
             const todayStr = new Date().toISOString().split('T')[0];
-            this.form = { user: '', site: '', actionDate: todayStr, txnType: 'ACTUAL', items: [{ itemId: '', itemCode: '', name: '', model: '', qty: 0, unit: this.units[0] || 'Panel' }] };
+            this.form = { 
+                user: '', 
+                site: '', 
+                actionDate: todayStr, 
+                txnType: 'ACTUAL', 
+                purpose: 'Project', // [ข้อ 1] วัตถุประสงค์แบบไม่มีตัวเลขนำหน้า
+                items: [{ itemId: '', itemCode: '', name: '', model: '', qty: 0, unit: this.units[0] || 'Panel' }] 
+            };
         },
 
         addRow() {
@@ -235,12 +262,20 @@ function cnesApp() {
             const seq = String(this.logs.length + 1).padStart(3, '0');
             const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
 
+            // [ข้อ 3] ดึงผู้ตรวจสอบสินค้าและผู้อนุมัติแมปอัตโนมัติตามวัตถุประสงค์ (Project / O&M)
+            const pKey = (this.form.purpose === 'O&M') ? 'om' : 'project';
+            const mappedInspector = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].inspector : '';
+            const mappedApprover = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].approver : '';
+
             this.logs.unshift({
                 id: customId,
                 timestamp: new Date().toLocaleString('th-TH'),
                 actionDate: this.form.actionDate, 
                 type: this.page.toUpperCase(),
                 txnType: this.form.txnType,
+                purpose: this.form.purpose || 'Project',
+                inspector: mappedInspector,
+                approver: mappedApprover,
                 status: 'PENDING',
                 user: this.form.user,
                 site: this.form.site,
@@ -328,7 +363,6 @@ function cnesApp() {
             alert('เปลี่ยนสถานะและปรับปรุงยอดเป็นการเบิกจ่าย/นำเข้าจริง เรียบร้อยแล้ว!');
         },
 
-        // [แก้ข้อ 2] ปรับปรุงระบบยกเลิกรายการ ค้นหาพัสดุแม่นยำด้วย ID หรือ Item Code และคืนยอดสต๊อกเดิมทันที
         cancelLog(logId) {
             if (this.userRole !== 'admin') {
                 alert('สิทธิ์ User ไม่สามารถยกเลิกรายการเบิก/รับ หรือสั่งจองได้ (สิทธิ์เฉพาะ Admin เท่านั้น)');
@@ -354,15 +388,15 @@ function cnesApp() {
                         const q = parseInt(row.qty) || 0;
                         if (log.type === 'OUT') {
                             if (log.txnType === 'ACTUAL') {
-                                inv.qty += q; // คืนสต๊อกจริง
+                                inv.qty += q;
                             } else if (log.txnType === 'RESERVE') {
-                                inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q); // คืนยอดจองออก
+                                inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
                             }
                         } else if (log.type === 'IN') {
                             if (log.txnType === 'ACTUAL') {
-                                inv.qty = Math.max(0, inv.qty - q); // หักคืนสต๊อกจริงจากการรับเข้า
+                                inv.qty = Math.max(0, inv.qty - q);
                             } else if (log.txnType === 'RESERVE') {
-                                inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q); // คืนยอดจองเข้า
+                                inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
                             }
                         }
                         inv.lastUpdated = nowStr;
@@ -409,7 +443,6 @@ function cnesApp() {
             }
         },
 
-        // [แก้ข้อ 1] อัปโหลด PDF สำหรับ Logs
         uploadPDF(event, logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -470,7 +503,6 @@ function cnesApp() {
             this.newItem.itemCode = `${prefix}-${String(count).padStart(3, '0')}`;
         },
 
-        // [แก้ข้อ 3] บันทึกจำนวนแรกเริ่มเมื่อลงทะเบียนวัสดุใหม่
         addMaterial() {
             if(!this.newItem.name || !this.newItem.itemCode) return alert('กรุณาระบุรหัสและชื่อวัสดุ!');
             const nowStr = new Date().toLocaleString('th-TH');
@@ -483,7 +515,7 @@ function cnesApp() {
                 location: (this.newItem.location || '').toUpperCase() || 'N/A',
                 category: this.newItem.category,
                 unit: this.newItem.unit || this.units[0],
-                initialQty: initQty, // [ข้อ 3] บันทึกยอดแรกเริ่ม
+                initialQty: initQty,
                 qty: initQty,
                 reserve_out: 0,
                 reserve_in: 0,
@@ -534,6 +566,12 @@ function cnesApp() {
             }
         },
 
+        // [ข้อ 3] ฟังก์ชันบันทึกการตั้งค่าผู้ลงนาม
+        saveSignatories() {
+            this.saveData();
+            alert('บันทึกและซิงก์ข้อมูลรายชื่อผู้ลงนามเรียบร้อยแล้ว ทุกอุปกรณ์จะเห็นข้อมูลชุดเดียวกัน');
+        },
+
         resetDropdownDefaults() {
             if (confirm('ต้องการล้างข้อมูลและกู้คืนตัวเลือก Dropdown หมวดหมู่และหน่วยนับสำรองจากระบบโค้ดเริ่มต้นหรือไม่?')) {
                 this.categories = ['PV Module', 'Inverter', 'Cables', 'BOS', 'Tools', 'Mounting', 'Grounding'];
@@ -564,13 +602,17 @@ function cnesApp() {
             localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
             localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
             localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
+            // [ข้อ 3] บันทึกรายชื่อผู้ลงนามลง LocalStorage
+            localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
             localStorage.setItem('cnes_v178_unsynced', 'true');
 
+            // [ข้อ 3] ส่งไปบันทึกลง Google Sheets Web App เพื่อให้ทุกเครื่องดึงไปใช้ตรงกัน
             const payload = {
                 inventory: this.inventory,
                 logs: this.logs,
                 categories: this.categories,
-                units: this.units
+                units: this.units,
+                signatories: this.signatories
             };
             fetch(API_URL, {
                 method: 'POST',
