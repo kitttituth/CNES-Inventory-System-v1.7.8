@@ -17,14 +17,13 @@ function cnesApp() {
         inventory: [],
         logs: [],
         
-        // --- [ข้อ 3] โครงสร้างผู้ลงนามแยกตาม Project / O&M และซิงก์ Google Sheets ---
+        // --- โครงสร้างผู้ลงนามแยกตาม Project / O&M ---
         signatories: {
-            project: { inspector: 'ผู้ตรวจสอบสินค้า (Project)', approver: 'ผู้อนุมัติ (Project)' },
-            om: { inspector: 'ผู้ตรวจสอบสินค้า (O&M)', approver: 'ผู้อนุมัติ (O&M)' }
+            project: { inspector: '', approver: '' },
+            om: { inspector: '', approver: '' }
         },
 
         // --- ข้อมูลฟอร์มและการตั้งค่า ---
-        // [ข้อ 1,2] ตัด inspector/approver ออกจากหน้าฟอร์ม นำเข้าเฉพาะ purpose ('Project' / 'O&M')
         form: { user: '', site: '', actionDate: '', txnType: 'ACTUAL', purpose: 'Project', items: [] },
         newCat: '',
         newUnit: '',
@@ -38,7 +37,6 @@ function cnesApp() {
             try { this.categories = JSON.parse(localStorage.getItem('cnes_v178_cats')) || []; } catch(e) { this.categories = []; }
             try { this.units = JSON.parse(localStorage.getItem('cnes_v178_units')) || []; } catch(e) { this.units = []; }
             
-            // [ข้อ 3] โหลดข้อมูลการตั้งค่าผู้ลงนามจาก LocalStorage
             try { 
                 const savedSig = JSON.parse(localStorage.getItem('cnes_v178_signatories'));
                 if (savedSig) this.signatories = savedSig;
@@ -86,7 +84,6 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
-                        // [ข้อ 3] ดึงข้อมูลรายชื่อผู้ลงนามจาก Google Sheets
                         if (serverData.signatories) {
                             this.signatories = serverData.signatories;
                             localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
@@ -110,7 +107,7 @@ function cnesApp() {
                 logs: this.logs,
                 categories: this.categories,
                 units: this.units,
-                signatories: this.signatories // [ข้อ 3] ซิงก์รายชื่อผู้ลงนามขึ้น Google Sheets
+                signatories: this.signatories
             };
             fetch(API_URL, {
                 method: 'POST',
@@ -165,7 +162,7 @@ function cnesApp() {
                 site: '', 
                 actionDate: todayStr, 
                 txnType: 'ACTUAL', 
-                purpose: 'Project', // [ข้อ 1] วัตถุประสงค์แบบไม่มีตัวเลขนำหน้า
+                purpose: 'Project',
                 items: [{ itemId: '', itemCode: '', name: '', model: '', qty: 0, unit: this.units[0] || 'Panel' }] 
             };
         },
@@ -232,6 +229,25 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
+        // --- [ข้อ 1] ตรวจสอบชื่อจาก Settings ถ้าไม่ได้กำหนดคืนค่าว่างลงในเอกสาร ---
+        getSignatoryInspector(log) {
+            if (!log) return '';
+            const pKey = (log.purpose === 'O&M') ? 'om' : 'project';
+            if (this.signatories && this.signatories[pKey] && this.signatories[pKey].inspector && this.signatories[pKey].inspector.trim()) {
+                return this.signatories[pKey].inspector.trim();
+            }
+            return ''; 
+        },
+
+        getSignatoryApprover(log) {
+            if (!log) return '';
+            const pKey = (log.purpose === 'O&M') ? 'om' : 'project';
+            if (this.signatories && this.signatories[pKey] && this.signatories[pKey].approver && this.signatories[pKey].approver.trim()) {
+                return this.signatories[pKey].approver.trim();
+            }
+            return ''; 
+        },
+
         submitTransaction() {
             const invalid = this.form.items.some(i => {
                 const codeFilled = i.itemCode && i.itemCode.trim();
@@ -262,7 +278,6 @@ function cnesApp() {
             const seq = String(this.logs.length + 1).padStart(3, '0');
             const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
 
-            // [ข้อ 3] ดึงผู้ตรวจสอบสินค้าและผู้อนุมัติแมปอัตโนมัติตามวัตถุประสงค์ (Project / O&M)
             const pKey = (this.form.purpose === 'O&M') ? 'om' : 'project';
             const mappedInspector = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].inspector : '';
             const mappedApprover = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].approver : '';
@@ -566,7 +581,6 @@ function cnesApp() {
             }
         },
 
-        // [ข้อ 3] ฟังก์ชันบันทึกการตั้งค่าผู้ลงนาม
         saveSignatories() {
             this.saveData();
             alert('บันทึกและซิงก์ข้อมูลรายชื่อผู้ลงนามเรียบร้อยแล้ว ทุกอุปกรณ์จะเห็นข้อมูลชุดเดียวกัน');
@@ -586,7 +600,7 @@ function cnesApp() {
             let csv = '\uFEFF'; 
             csv += 'Code (รหัส),Material (ชื่อวัสดุ),Model (รุ่น),Location (ตำแหน่งจัดเก็บ),Category (หมวดหมู่),Initial Qty (ยอดแรกเริ่ม),Balance (คงเหลือปัจจุบัน),Reserve (จอง),Unit (หน่วย),Created Date (วันแรกเข้า),Last Updated (อัปเดตล่าสุดเมื่อ)\n';
             this.inventory.forEach(item => {
-                csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.initialQty !== undefined ? item.initialQty : item.qty},${item.qty},${item.reserve_out || 0},"${item.unit}","${item.createdDate || '-'}","${item.lastUpdated || '-'}"\n`;
+                csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.initialQty !== undefined ? item.initialQty : item.qty},${item.qty},${item.reserve_out || 0},"${item.unit}","${item.createdDate || '-'}"\n`;
             });
             const blobObj = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
@@ -602,11 +616,9 @@ function cnesApp() {
             localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
             localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
             localStorage.setItem('cnes_v178_units', JSON.stringify(this.units));
-            // [ข้อ 3] บันทึกรายชื่อผู้ลงนามลง LocalStorage
             localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
             localStorage.setItem('cnes_v178_unsynced', 'true');
 
-            // [ข้อ 3] ส่งไปบันทึกลง Google Sheets Web App เพื่อให้ทุกเครื่องดึงไปใช้ตรงกัน
             const payload = {
                 inventory: this.inventory,
                 logs: this.logs,

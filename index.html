@@ -184,7 +184,6 @@
                         <p class="text-xs text-slate-500 mt-1">กรอกข้อมูลผู้เบิก วันที่ทำรายการจริง วัตถุประสงค์ และเลือกพัสดุที่ต้องการทำรายการ</p>
                     </div>
 
-                    <!-- [ข้อ 2] ถอดช่อง "ผู้ตรวจสอบสินค้า" และ "ผู้อนุมัติ" ออกจากฟอร์มหลัก จัดวางสวยงาม -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
                         <div class="md:col-span-2">
                             <label class="block text-xs font-bold text-slate-600 mb-1.5">ชื่อผู้ทำรายการเบิก/รับ *</label>
@@ -199,7 +198,6 @@
                             <input type="date" x-model="form.actionDate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none">
                         </div>
                         
-                        <!-- [ข้อ 1] วัตถุประสงค์การเบิก/นำเข้า (ไม่มี 1. หรือ 2.) -->
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1.5">วัตถุประสงค์ *</label>
                             <select x-model="form.purpose" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none font-bold text-blue-700">
@@ -311,7 +309,6 @@
                                             </td>
                                             <td class="px-6 py-4">
                                                 <span :class="log.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'" class="px-2.5 py-1 text-[10px] font-bold rounded-full border block w-fit" x-text="log.type + ' (' + log.txnType + ')'"></span>
-                                                <!-- [ข้อ 1] แสดงวัตถุประสงค์ (ไม่มีตัวเลข 1., 2.) -->
                                                 <span class="text-[10px] font-bold text-slate-500 mt-1 block" x-text="'📌 ' + (log.purpose || 'Project')"></span>
                                             </td>
                                             <td class="px-6 py-4 text-slate-600 text-xs">
@@ -401,7 +398,7 @@
                         </div>
                     </div>
 
-                    <!-- [ข้อ 3] ตั้งค่าผู้ลงนามแยกตามวัตถุประสงค์ (Project vs O&M) และซิงก์ข้อมูลไป Google Sheets -->
+                    <!-- ตั้งค่าผู้ลงนามแยกตามวัตถุประสงค์ (Project vs O&M) -->
                     <div class="bg-white p-5 rounded-xl border border-blue-200 shadow-sm space-y-4">
                         <div class="flex justify-between items-center border-b border-slate-200 pb-3">
                             <div>
@@ -666,7 +663,6 @@
                             <p class="font-bold">ข้อมูลผู้ทำรายการ:</p>
                             <p x-text="'ชื่อผู้เบิก/รับของ: ' + printData.user"></p>
                             <p x-text="'สถานที่ไซต์งาน (Site): ' + (printData.site || 'N/A')"></p>
-                            <!-- [ข้อ 1] แสดงวัตถุประสงค์โดยไม่มีตัวเลข 1. หรือ 2. -->
                             <p class="font-bold text-blue-800" x-text="'วัตถุประสงค์: ' + (printData.purpose || 'Project')"></p>
                         </div>
                         <div class="text-right">
@@ -701,29 +697,37 @@
                     </table>
                 </div>
 
-                <!-- ส่วนลายเซ็น 3 ช่อง จัดวางสมมาตร อยู่ล่างสุดของกระดาษเสมอ -->
+                <!-- [ข้อ 1, 2] ปรับปรุงโซนเซ็นเอกสารเพิ่มพื้นที่ Sign, ชื่อใน Settings (ถ้าไม่มีจะเว้นว่าง) และลงวันที่ในเอกสาร -->
                 <div class="mt-auto pt-6 space-y-4">
                     <div class="grid grid-cols-3 gap-6 text-xs text-center border-t border-slate-300 pt-6">
                         <!-- ช่องซ้ายสุด: ผู้เบิกสินค้า/รับสินค้า -->
-                        <div class="flex flex-col items-center justify-end">
+                        <div class="flex flex-col items-center justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้ทำรายการเบิก / รับสินค้า</p>
-                            <div class="h-16"></div>
-                            <p class="text-slate-400">....................................................</p>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="'( ' + printData.user + ' )'"></p>
+                            <div class="h-12 flex items-end justify-center w-full">
+                                <p class="text-slate-400 w-full">....................................................</p>
+                            </div>
+                            <p class="font-semibold text-slate-800" x-text="printData.user ? '( ' + printData.user + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px]">วันที่ ........ / ........ / .............</p>
                         </div>
+                        
                         <!-- ช่องกลาง: ผู้ตรวจสอบสินค้า -->
-                        <div class="flex flex-col items-center justify-end">
+                        <div class="flex flex-col items-center justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้ตรวจสอบสินค้า</p>
-                            <div class="h-16"></div>
-                            <p class="text-slate-400">....................................................</p>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="'( ' + (printData.inspector || '........................................') + ' )'"></p>
+                            <div class="h-12 flex items-end justify-center w-full">
+                                <p class="text-slate-400 w-full">....................................................</p>
+                            </div>
+                            <p class="font-semibold text-slate-800" x-text="getSignatoryInspector(printData) ? '( ' + getSignatoryInspector(printData) + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px]">วันที่ ........ / ........ / .............</p>
                         </div>
+
                         <!-- ช่องขวาสุด: ผู้อนุมัติ -->
-                        <div class="flex flex-col items-center justify-end">
+                        <div class="flex flex-col items-center justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้อนุมัติ</p>
-                            <div class="h-16"></div>
-                            <p class="text-slate-400">....................................................</p>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="'( ' + (printData.approver || '........................................') + ' )'"></p>
+                            <div class="h-12 flex items-end justify-center w-full">
+                                <p class="text-slate-400 w-full">....................................................</p>
+                            </div>
+                            <p class="font-semibold text-slate-800" x-text="getSignatoryApprover(printData) ? '( ' + getSignatoryApprover(printData) + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px]">วันที่ ........ / ........ / .............</p>
                         </div>
                     </div>
 
