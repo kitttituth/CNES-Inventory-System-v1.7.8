@@ -89,12 +89,18 @@ function cnesApp() {
                             this.signatories = serverData.signatories;
                         } else if (serverData.logs && serverData.logs.length > 0) {
                             // ระบบช่วยดึงจากประวัติสลับอัตโนมัติ หากเครื่องอื่นยังไม่ได้บันทึกก้อนหลัก
-                            const projLog = serverData.logs.find(l => (l.purpose || '').toUpperCase().includes('PROJECT') && l.inspector);
+                            const projLog = serverData.logs.find(l => {
+                                const p = (l.purpose || '').toUpperCase();
+                                return p.includes('PROJECT') && l.inspector;
+                            });
                             if (projLog) {
                                 if (!this.signatories.project.inspector) this.signatories.project.inspector = projLog.inspector || '';
                                 if (!this.signatories.project.approver) this.signatories.project.approver = projLog.approver || '';
                             }
-                            const omLog = serverData.logs.find(l => (l.purpose || '').toUpperCase().includes('O&M') && l.inspector);
+                            const omLog = serverData.logs.find(l => {
+                                const p = (l.purpose || '').toUpperCase();
+                                return (p.includes('O&M') || p.includes('OM')) && l.inspector;
+                            });
                             if (omLog) {
                                 if (!this.signatories.om.inspector) this.signatories.om.inspector = omLog.inspector || '';
                                 if (!this.signatories.om.approver) this.signatories.om.approver = omLog.approver || '';
@@ -242,10 +248,11 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกชัดเจนระหว่าง Project และ O&M ---
+        // --- [ข้อ 1.1 & 1.2] ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ---
         getSignatoryInspector(log) {
             if (!log) return '';
-            const isOM = (log.purpose || '').trim().toUpperCase().includes('O&M');
+            const p = (log.purpose || '').trim().toUpperCase();
+            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
             const pKey = isOM ? 'om' : 'project';
 
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].inspector && this.signatories[pKey].inspector.trim()) {
@@ -254,10 +261,11 @@ function cnesApp() {
             return log.inspector ? log.inspector.trim() : ''; 
         },
 
-        // --- ดึงรายชื่อผู้อนุมัติแยกชัดเจนระหว่าง Project และ O&M ---
+        // --- [ข้อ 1.1 & 1.2] ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ---
         getSignatoryApprover(log) {
             if (!log) return '';
-            const isOM = (log.purpose || '').trim().toUpperCase().includes('O&M');
+            const p = (log.purpose || '').trim().toUpperCase();
+            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
             const pKey = isOM ? 'om' : 'project';
 
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].approver && this.signatories[pKey].approver.trim()) {
@@ -296,7 +304,8 @@ function cnesApp() {
             const seq = String(this.logs.length + 1).padStart(3, '0');
             const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
 
-            const isOM = (this.form.purpose || '').trim().toUpperCase().includes('O&M');
+            const p = (this.form.purpose || '').trim().toUpperCase();
+            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
             const pKey = isOM ? 'om' : 'project';
             const mappedInspector = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].inspector : '';
             const mappedApprover = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].approver : '';
