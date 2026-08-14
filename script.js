@@ -84,11 +84,24 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
+                        // [เช็คซิงก์ข้อมูลข้ามแพลตฟอร์ม] ดึงค่าตั้งค่าผู้ลงนามจาก Google Sheets
                         if (serverData.signatories) {
                             this.signatories = serverData.signatories;
-                            localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
+                        } else if (serverData.logs && serverData.logs.length > 0) {
+                            // ระบบช่วยดึงจากประวัติสลับอัตโนมัติ หากเครื่องอื่นยังไม่ได้บันทึกก้อนหลัก
+                            const projLog = serverData.logs.find(l => (l.purpose || '').toUpperCase().includes('PROJECT') && l.inspector);
+                            if (projLog) {
+                                if (!this.signatories.project.inspector) this.signatories.project.inspector = projLog.inspector || '';
+                                if (!this.signatories.project.approver) this.signatories.project.approver = projLog.approver || '';
+                            }
+                            const omLog = serverData.logs.find(l => (l.purpose || '').toUpperCase().includes('O&M') && l.inspector);
+                            if (omLog) {
+                                if (!this.signatories.om.inspector) this.signatories.om.inspector = omLog.inspector || '';
+                                if (!this.signatories.om.approver) this.signatories.om.approver = omLog.approver || '';
+                            }
                         }
 
+                        localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
                         localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
@@ -229,23 +242,28 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // --- [ข้อ 1] ตรวจสอบชื่อจาก Settings ถ้าไม่ได้กำหนดคืนค่าว่างลงในเอกสาร ---
+        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกชัดเจนระหว่าง Project และ O&M ---
         getSignatoryInspector(log) {
             if (!log) return '';
-            const pKey = (log.purpose === 'O&M') ? 'om' : 'project';
+            const isOM = (log.purpose || '').trim().toUpperCase().includes('O&M');
+            const pKey = isOM ? 'om' : 'project';
+
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].inspector && this.signatories[pKey].inspector.trim()) {
                 return this.signatories[pKey].inspector.trim();
             }
-            return ''; 
+            return log.inspector ? log.inspector.trim() : ''; 
         },
 
+        // --- ดึงรายชื่อผู้อนุมัติแยกชัดเจนระหว่าง Project และ O&M ---
         getSignatoryApprover(log) {
             if (!log) return '';
-            const pKey = (log.purpose === 'O&M') ? 'om' : 'project';
+            const isOM = (log.purpose || '').trim().toUpperCase().includes('O&M');
+            const pKey = isOM ? 'om' : 'project';
+
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].approver && this.signatories[pKey].approver.trim()) {
                 return this.signatories[pKey].approver.trim();
             }
-            return ''; 
+            return log.approver ? log.approver.trim() : ''; 
         },
 
         submitTransaction() {
@@ -278,7 +296,8 @@ function cnesApp() {
             const seq = String(this.logs.length + 1).padStart(3, '0');
             const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
 
-            const pKey = (this.form.purpose === 'O&M') ? 'om' : 'project';
+            const isOM = (this.form.purpose || '').trim().toUpperCase().includes('O&M');
+            const pKey = isOM ? 'om' : 'project';
             const mappedInspector = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].inspector : '';
             const mappedApprover = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].approver : '';
 
