@@ -80,16 +80,27 @@ function cnesApp() {
                     const serverData = await res.json();
                     if (serverData) {
                         this.inventory = serverData.inventory || [];
-                        this.logs = serverData.logs || [];
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
-                        // [เช็คซิงก์ข้อมูลข้ามแพลตฟอร์ม] ดึงค่าตั้งค่าผู้ลงนามจาก Google Sheets
+                        // [แก้ปัญหาเด้งกลับ] รวมข้อมูล Logs ล็อคค่า purpose, inspector, approver ไม่ให้ Google Sheets ดึงค่าว่างมาทับ
+                        if (serverData.logs) {
+                            this.logs = serverData.logs.map(serverLog => {
+                                const localLog = this.logs.find(l => l.id == serverLog.id);
+                                return {
+                                    ...serverLog,
+                                    purpose: (serverLog.purpose && serverLog.purpose.trim()) ? serverLog.purpose : (localLog && localLog.purpose ? localLog.purpose : 'Project'),
+                                    inspector: (serverLog.inspector && serverLog.inspector.trim()) ? serverLog.inspector : (localLog && localLog.inspector ? localLog.inspector : ''),
+                                    approver: (serverLog.approver && serverLog.approver.trim()) ? serverLog.approver : (localLog && localLog.approver ? localLog.approver : '')
+                                };
+                            });
+                        }
+
+                        // เช็คซิงก์ข้อมูลผู้ลงนามข้ามอุปกรณ์
                         if (serverData.signatories) {
                             this.signatories = serverData.signatories;
-                        } else if (serverData.logs && serverData.logs.length > 0) {
-                            // ระบบช่วยดึงจากประวัติสลับอัตโนมัติ หากเครื่องอื่นยังไม่ได้บันทึกก้อนหลัก
-                            const projLog = serverData.logs.find(l => {
+                        } else if (this.logs && this.logs.length > 0) {
+                            const projLog = this.logs.find(l => {
                                 const p = (l.purpose || '').toUpperCase();
                                 return p.includes('PROJECT') && l.inspector;
                             });
@@ -97,7 +108,7 @@ function cnesApp() {
                                 if (!this.signatories.project.inspector) this.signatories.project.inspector = projLog.inspector || '';
                                 if (!this.signatories.project.approver) this.signatories.project.approver = projLog.approver || '';
                             }
-                            const omLog = serverData.logs.find(l => {
+                            const omLog = this.logs.find(l => {
                                 const p = (l.purpose || '').toUpperCase();
                                 return (p.includes('O&M') || p.includes('OM')) && l.inspector;
                             });
@@ -248,7 +259,7 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // --- [ข้อ 1.1 & 1.2] ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ---
+        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ครอบคลุมทุกตัวพิมพ์ ---
         getSignatoryInspector(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
@@ -261,7 +272,7 @@ function cnesApp() {
             return log.inspector ? log.inspector.trim() : ''; 
         },
 
-        // --- [ข้อ 1.1 & 1.2] ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ---
+        // --- ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ครอบคลุมทุกตัวพิมพ์ ---
         getSignatoryApprover(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
