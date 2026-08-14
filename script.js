@@ -83,15 +83,35 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
                         
-                        // [แก้ปัญหาเด้งกลับ] รวมข้อมูล Logs ล็อคค่า purpose, inspector, approver ไม่ให้ Google Sheets ดึงค่าว่างมาทับ
+                        // อ่านประวัติเดิมจากเครื่องเพื่อป้องกันการถูก Google Sheets ลบทับค่า O&M
+                        let localSavedLogs = [];
+                        try { localSavedLogs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) {}
+
                         if (serverData.logs) {
-                            this.logs = serverData.logs.map(serverLog => {
-                                const localLog = this.logs.find(l => l.id == serverLog.id);
+                            this.logs = serverData.logs.map((serverLog, index) => {
+                                // จับคู่รายการเดิมอย่างแม่นยำด้วย ID / เวลาทำรายการ / ดัชนี
+                                const localLog = localSavedLogs.find(l => 
+                                    String(l.id).trim() === String(serverLog.id).trim() ||
+                                    (l.timestamp === serverLog.timestamp && l.user === serverLog.user)
+                                ) || localSavedLogs[index];
+
+                                const savedPurpose = (serverLog.purpose && serverLog.purpose.trim()) 
+                                    ? serverLog.purpose 
+                                    : (localLog && localLog.purpose ? localLog.purpose : 'Project');
+
+                                const savedInspector = (serverLog.inspector && serverLog.inspector.trim()) 
+                                    ? serverLog.inspector 
+                                    : (localLog && localLog.inspector ? localLog.inspector : '');
+
+                                const savedApprover = (serverLog.approver && serverLog.approver.trim()) 
+                                    ? serverLog.approver 
+                                    : (localLog && localLog.approver ? localLog.approver : '');
+
                                 return {
                                     ...serverLog,
-                                    purpose: (serverLog.purpose && serverLog.purpose.trim()) ? serverLog.purpose : (localLog && localLog.purpose ? localLog.purpose : 'Project'),
-                                    inspector: (serverLog.inspector && serverLog.inspector.trim()) ? serverLog.inspector : (localLog && localLog.inspector ? localLog.inspector : ''),
-                                    approver: (serverLog.approver && serverLog.approver.trim()) ? serverLog.approver : (localLog && localLog.approver ? localLog.approver : '')
+                                    purpose: savedPurpose,
+                                    inspector: savedInspector,
+                                    approver: savedApprover
                                 };
                             });
                         }
@@ -259,7 +279,7 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ครอบคลุมทุกตัวพิมพ์ ---
+        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ครอบคลุมทุกรูปแบบ ---
         getSignatoryInspector(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
@@ -272,7 +292,7 @@ function cnesApp() {
             return log.inspector ? log.inspector.trim() : ''; 
         },
 
-        // --- ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ครอบคลุมทุกตัวพิมพ์ ---
+        // --- ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ครอบคลุมทุกรูปแบบ ---
         getSignatoryApprover(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
