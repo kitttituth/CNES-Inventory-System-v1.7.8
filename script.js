@@ -1,6 +1,13 @@
 // URL หลังบ้าน Google Sheets Web App
 const API_URL = 'https://script.google.com/macros/s/AKfycbxe6ixhD0tIux9YZhZZi9NYIe5OeADp5PGqSTIQpD-Cd3tde5rk4rdOaqVlMQN6zvUw/exec';
 
+// 🚀 ลิงก์โฟลเดอร์แชร์ของ Microsoft Teams (SharePoint) แยกตามประเภทเอกสาร 3 หมวด
+const TEAMS_URLS = {
+    PO: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgBDGNtphNFXQ4s16171MYHfAcwor2NyJ1iVyJpX0yFriBI?e=KzudSN',
+    WITHDRAW: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgC1u8OuOZ5yRZdleGy4_3_CAQm85RQcEFlDv80ANmFhUps?e=dZVZsD',
+    RECEIVE: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgDVvDSLvh5NRZsjMq4AFJ2YAf4_MJqZRZnXfHWtAeOPXMk?e=ReLchD'
+};
+
 function cnesApp() {
     return {
         // --- ระบบสิทธิ์และหน้าจอ ---
@@ -30,7 +37,7 @@ function cnesApp() {
         newItem: { itemCode: '', name: '', model: '', location: '', category: '', unit: '', qty: 0 }, 
         printData: null,
 
-        // [1] โหลดข้อมูลเริ่มต้น (อัปเกรดฐานข้อมูลสู่คีย์เซฟตี้ v1.7.8)
+        // [1] โหลดข้อมูลเริ่มต้น
         async initData() {
             try { this.inventory = JSON.parse(localStorage.getItem('cnes_v178_inv')) || []; } catch(e) { this.inventory = []; }
             try { this.logs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) { this.logs = []; }
@@ -79,17 +86,30 @@ function cnesApp() {
                 if (res.ok) {
                     const serverData = await res.json();
                     if (serverData) {
-                        this.inventory = serverData.inventory || [];
-                        this.categories = serverData.categories || [];
-                        this.units = serverData.units || [];
-                        
-                        // อ่านประวัติเดิมจากเครื่องเพื่อป้องกันการถูก Google Sheets ลบทับค่า O&M
                         let localSavedLogs = [];
                         try { localSavedLogs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) {}
 
+                        let localSavedInv = [];
+                        try { localSavedInv = JSON.parse(localStorage.getItem('cnes_v178_inv')) || []; } catch(e) {}
+
+                        if (serverData.inventory) {
+                            this.inventory = serverData.inventory.map((serverItem, idx) => {
+                                const localItem = localSavedInv.find(i => String(i.id).trim() === String(serverItem.id).trim() || i.itemCode === serverItem.itemCode) || localSavedInv[idx];
+                                const poPdfData = (localItem && localItem.poPdfData) ? localItem.poPdfData : (serverItem.poPdfData || '');
+                                const poPdfName = (serverItem.poPdfName && String(serverItem.poPdfName).trim()) ? serverItem.poPdfName : (localItem && localItem.poPdfName ? localItem.poPdfName : '');
+                                return {
+                                    ...serverItem,
+                                    poPdfData: poPdfData,
+                                    poPdfName: poPdfName
+                                };
+                            });
+                        }
+
+                        this.categories = serverData.categories || [];
+                        this.units = serverData.units || [];
+
                         if (serverData.logs) {
                             this.logs = serverData.logs.map((serverLog, index) => {
-                                // จับคู่รายการเดิมอย่างแม่นยำด้วย ID / เวลาทำรายการ / ดัชนี
                                 const localLog = localSavedLogs.find(l => 
                                     String(l.id).trim() === String(serverLog.id).trim() ||
                                     (l.timestamp === serverLog.timestamp && l.user === serverLog.user)
@@ -107,16 +127,20 @@ function cnesApp() {
                                     ? serverLog.approver 
                                     : (localLog && localLog.approver ? localLog.approver : '');
 
+                                const savedPdfData = (localLog && localLog.pdfData) ? localLog.pdfData : (serverLog.pdfData || '');
+                                const savedPdfName = (serverLog.pdfName && String(serverLog.pdfName).trim()) ? serverLog.pdfName : (localLog && localLog.pdfName ? localLog.pdfName : '');
+
                                 return {
                                     ...serverLog,
                                     purpose: savedPurpose,
                                     inspector: savedInspector,
-                                    approver: savedApprover
+                                    approver: savedApprover,
+                                    pdfData: savedPdfData,
+                                    pdfName: savedPdfName
                                 };
                             });
                         }
 
-                        // เช็คซิงก์ข้อมูลผู้ลงนามข้ามอุปกรณ์
                         if (serverData.signatories) {
                             this.signatories = serverData.signatories;
                         } else if (this.logs && this.logs.length > 0) {
@@ -170,7 +194,6 @@ function cnesApp() {
             });
         },
 
-        // [2] ระบบตรวจสอบ Login
         handleLogin() {
             if (this.loginPin === 'admincnes111111') { this.userRole = 'admin'; }
             else if (this.loginPin === '111111') { this.userRole = 'user'; }
@@ -279,7 +302,6 @@ function cnesApp() {
             this.smartAutoFill(row, row.model);
         },
 
-        // --- ดึงรายชื่อผู้ตรวจสอบสินค้าแยกตามหมวด Project / O&M ครอบคลุมทุกรูปแบบ ---
         getSignatoryInspector(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
@@ -292,7 +314,6 @@ function cnesApp() {
             return log.inspector ? log.inspector.trim() : ''; 
         },
 
-        // --- ดึงรายชื่อผู้อนุมัติแยกตามหมวด Project / O&M ครอบคลุมทุกรูปแบบ ---
         getSignatoryApprover(log) {
             if (!log) return '';
             const p = (log.purpose || '').trim().toUpperCase();
@@ -517,32 +538,162 @@ function cnesApp() {
             }
         },
 
+        hasPdf(log) {
+            if (!log) return false;
+            const d = String(log.pdfData || '').trim();
+            const n = String(log.pdfName || '').trim();
+            return ((d && d !== 'null' && d !== 'undefined' && (d.indexOf('http') === 0 || d.indexOf('data:') === 0 || d.indexOf('base64') > -1)) || (n && n !== 'null' && n !== 'undefined' && n.length > 0));
+        },
+
+        hasMaterialPdf(item) {
+            if (!item) return false;
+            const d = String(item.poPdfData || '').trim();
+            const n = String(item.poPdfName || '').trim();
+            return ((d && d !== 'null' && d !== 'undefined' && (d.indexOf('http') === 0 || d.indexOf('data:') === 0 || d.indexOf('base64') > -1)) || (n && n !== 'null' && n !== 'undefined' && n.length > 0));
+        },
+
+        // 🚀 [รันเปิดไฟล์ PDF อัตโนมัติ 100% หรือเปิดโฟลเดอร์ Teams ตามหมวดหมู่เอกสาร]
+        viewPDF(pdfData, pdfName) {
+            let targetData = String(pdfData || '').trim();
+            const fileName = String(pdfName || '').trim();
+
+            // 1. ถ้ามีข้อมูลไฟล์ Base64 ให้สร้างหน้าต่างเปิดไฟล์ PDF ขึ้นมาดูทันที
+            if (targetData && (targetData.indexOf('data:application/pdf') === 0 || targetData.indexOf('base64,') > -1)) {
+                try {
+                    const base64Parts = targetData.split('base64,');
+                    const mimeType = 'application/pdf';
+                    const base64Clean = base64Parts[1].replace(/\s/g, ''); 
+                    const byteCharacters = atob(base64Clean);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], { type: mimeType });
+                    if (blob.size > 0) {
+                        const blobUrl = URL.createObjectURL(blob);
+                        const win = window.open(blobUrl, '_blank');
+                        if (!win) {
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = fileName || 'Document.pdf';
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Failed to parse base64 PDF", e);
+                }
+            }
+
+            // 2. ถ้ามี URL โดยตรง (Drive / Direct Web link)
+            if (targetData && (targetData.indexOf('http://') === 0 || targetData.indexOf('https://') === 0)) {
+                let directPdfUrl = targetData;
+                if (targetData.indexOf('drive.google.com') > -1) {
+                    const match = targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (match && match[1]) {
+                        directPdfUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+                    }
+                }
+                const win = window.open(directPdfUrl, '_blank');
+                if (!win) location.href = directPdfUrl;
+                return;
+            }
+
+            // 3. หากมีเฉพาะ Log ชื่อไฟล์ ให้เปิดเข้าโฟลเดอร์ Microsoft Teams ตามหมวดหมู่เอกสาร
+            if (fileName.includes('PO') || fileName.includes('[PO]')) {
+                const win = window.open(TEAMS_URLS.PO, '_blank');
+                if (!win) location.href = TEAMS_URLS.PO;
+                return;
+            } else if (fileName.includes('ใบรับสินค้า') || fileName.includes('RECEIVE') || fileName.includes('IN')) {
+                const win = window.open(TEAMS_URLS.RECEIVE, '_blank');
+                if (!win) location.href = TEAMS_URLS.RECEIVE;
+                return;
+            } else if (fileName.includes('ใบเบิก') || fileName.includes('WITHDRAW') || fileName.includes('OUT')) {
+                const win = window.open(TEAMS_URLS.WITHDRAW, '_blank');
+                if (!win) location.href = TEAMS_URLS.WITHDRAW;
+                return;
+            }
+
+            alert('ไม่พบไฟล์เอกสาร PDF หรือโฟลเดอร์ในระบบ กรุณาแนบไฟล์ใหม่อีกครั้ง');
+        },
+
+        // 🚀 [อัปโหลดแนบใบเบิก/รับสินค้า บันทึกเนื้อหา PDF เพื่อรันดูอัตโนมัติ และแยกชื่อ Log ตามหมวด IN/OUT]
         uploadPDF(event, logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
 
-            if (log.pdfData && log.pdfData.indexOf('http') === 0) {
-                alert('รายการนี้เคยแนบไฟล์ PDF แล้ว ไม่สามารถแนบซ้ำได้ หากต้องการแนบใหม่ต้องไปลบข้อมูลใน Google Sheets ก่อน');
+            if (this.hasPdf(log)) {
+                alert('รายการนี้เคยแนบไฟล์ PDF แล้ว หากต้องการแนบใหม่ กรุณากดปุ่มลบไฟล์เดิมก่อน');
                 return;
             }
 
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
-            
+
+            if (file.size > 10 * 1024 * 1024) {
+                alert('ไฟล์ PDF มีขนาดใหญ่เกิน 10MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
+                return;
+            }
+
             const reader = new FileReader();
-            reader.onload = (e) => {
-                log.pdfData = e.target.result;
-                log.pdfName = file.name;
+            reader.onload = async (e) => {
+                const base64Data = e.target.result;
+                const docTypePrefix = log.type === 'IN' ? 'ใบรับสินค้า' : 'ใบเบิก';
+                const formattedName = `[${docTypePrefix}]_${(log.id || '').replace(/[\/\\]/g, '-')}_${file.name}`;
+                const targetTeamsUrl = log.type === 'IN' ? TEAMS_URLS.RECEIVE : TEAMS_URLS.WITHDRAW;
+                
+                // บันทึก Base64 เพื่อให้กดเปิดดูไฟล์ PDF ได้ทันทีอัตโนมัติ
+                log.pdfData = base64Data;
+                log.pdfName = formattedName;
                 this.saveData();
-                alert('แนบไฟล์ PDF เรียบร้อยแล้ว (กำลังอัปโหลดขึ้น Google Drive เพื่อให้ดูย้อนหลังได้ตลอดเวลา)');
+
+                alert('กำลังอัปโหลดไฟล์ PDF ขึ้นระบบ กรุณารอสักครู่...');
+
+                try {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'uploadPdf',
+                            logId: log.id,
+                            category: docTypePrefix,
+                            pdfName: formattedName,
+                            pdfBase64: base64Data,
+                            teamsUrl: targetTeamsUrl
+                        })
+                    });
+                    
+                    const resData = await res.json();
+                    if (resData && resData.status === 'success' && resData.fileUrl) {
+                        log.pdfData = resData.fileUrl;
+                    }
+                    this.saveData();
+                    alert(`อัปโหลดไฟล์ PDF [${docTypePrefix}] เรียบร้อยแล้ว! (สามารถกดดูย้อนหลังได้ตลอดเวลา)`);
+                } catch (err) {
+                    this.saveData();
+                    alert(`แนบไฟล์ PDF [${docTypePrefix}] เรียบร้อยแล้ว`);
+                }
             };
             reader.readAsDataURL(file);
         },
 
+        // 🚀 [ฟังก์ชันลบไฟล์ PDF ของสลิปประวัติเพื่ออัปโหลดใหม่]
         removePDF(logId) {
-            alert('ไม่สามารถลบไฟล์ PDF จากหน้าเว็บได้ หากต้องการแนบไฟล์ใหม่ กรุณาไปลบชื่อไฟล์ใน Google Sheets (แผ่น Logs คอลัมน์ PDF Name) ก่อนครับ');
+            const log = this.logs.find(l => l.id == logId);
+            if (!log) return;
+            if (confirm('คุณต้องการลบไฟล์ PDF นี้เพื่ออัปโหลดใหม่ใช่หรือไม่?')) {
+                log.pdfData = null;
+                log.pdfName = '';
+                this.saveData();
+                alert('ลบไฟล์ PDF เรียบร้อยแล้ว สามารถกดปุ่มแนบ PDF ใหม่ได้ทันที');
+            }
         },
 
+        // 🚀 [อัปโหลดแนบใบ PO/Delivery บันทึกเนื้อหา PDF เพื่อรันดูอัตโนมัติ และแยกชื่อ Log ตามหัวข้อ PO]
         uploadMaterialPDF(event, itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -550,14 +701,62 @@ function cnesApp() {
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
 
+            if (file.size > 10 * 1024 * 1024) {
+                alert('ไฟล์ PDF มีขนาดใหญ่เกิน 10MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
+                return;
+            }
+
             const reader = new FileReader();
-            reader.onload = (e) => {
-                item.poPdfData = e.target.result;
-                item.poPdfName = file.name;
+            reader.onload = async (e) => {
+                const base64Data = e.target.result;
+                const formattedName = `[PO]_${item.itemCode || 'ITEM'}_${file.name}`;
+                const targetTeamsUrl = TEAMS_URLS.PO;
+
+                // บันทึก Base64 เพื่อให้กดเปิดดูไฟล์ PDF ได้ทันทีอัตโนมัติ
+                item.poPdfData = base64Data;
+                item.poPdfName = formattedName;
                 this.saveData();
-                alert('แนบเอกสาร PO / ใบส่งของเรียบร้อยแล้ว');
+
+                alert('กำลังอัปโหลดใบ PO/Delivery ขึ้นระบบ กรุณารอสักครู่...');
+
+                try {
+                    const res = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify({
+                            action: 'uploadPdf',
+                            itemId: item.id,
+                            category: 'PO',
+                            pdfName: formattedName,
+                            pdfBase64: base64Data,
+                            teamsUrl: targetTeamsUrl
+                        })
+                    });
+                    
+                    const resData = await res.json();
+                    if (resData && resData.status === 'success' && resData.fileUrl) {
+                        item.poPdfData = resData.fileUrl;
+                    }
+                    this.saveData();
+                    alert('แนบเอกสาร PO / ใบส่งของขึ้นระบบเรียบร้อยแล้ว!');
+                } catch (err) {
+                    this.saveData();
+                    alert('แนบเอกสาร PO / ใบส่งของเรียบร้อยแล้ว');
+                }
             };
             reader.readAsDataURL(file);
+        },
+
+        // 🚀 [ฟังก์ชันลบไฟล์ PO/Delivery ของวัสดุเพื่ออัปโหลดใหม่]
+        removeMaterialPDF(itemId) {
+            const item = this.inventory.find(i => i.id == itemId);
+            if (!item) return;
+            if (confirm('คุณต้องการลบเอกสาร PO / ใบส่งของนี้เพื่ออัปโหลดใหม่ใช่หรือไม่?')) {
+                item.poPdfData = null;
+                item.poPdfName = '';
+                this.saveData();
+                alert('ลบเอกสาร PO เรียบร้อยแล้ว สามารถกดแนบไฟล์ใหม่ได้ทันที');
+            }
         },
 
         printLogData(log) {

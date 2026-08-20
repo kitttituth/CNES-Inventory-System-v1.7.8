@@ -152,8 +152,26 @@
                                                 <div class="text-[10px] text-slate-400 space-y-0.5 bg-slate-50 p-1.5 rounded border border-slate-100">
                                                     <p x-text="'📅 วันแรกเข้าคลัง: ' + (item.createdDate || new Date(item.id).toLocaleString('th-TH'))"></p>
                                                     <p x-text="'🔄 อัปเดตล่าสุด: ' + (item.lastUpdated || '-')"></p>
-                                                    <template x-if="item.poPdfData">
-                                                        <p><a :href="item.poPdfData" :download="item.poPdfName" target="_blank" class="text-emerald-600 font-bold underline">📄 ดูใบ PO/Delivery</a></p>
+                                                    <template x-if="hasMaterialPdf(item)">
+                                                        <div class="pt-0.5">
+                                                            <div class="flex items-center gap-2">
+                                                                <button @click="viewPDF(item.poPdfData, item.poPdfName)" class="text-emerald-600 font-bold underline cursor-pointer" title="คลิกเปิดดูไฟล์ PDF นี้ทันที">
+                                                                    👁️ ดูไฟล์ PO/Delivery
+                                                                </button>
+                                                                <button @click="removeMaterialPDF(item.id)" class="text-rose-500 hover:text-rose-700 font-bold text-xs" title="ลบไฟล์เพื่ออัปโหลดใหม่">
+                                                                    🗑️
+                                                                </button>
+                                                            </div>
+                                                            <span class="text-[9px] text-slate-500 font-mono block truncate max-w-[170px]" x-text="item.poPdfName" :title="item.poPdfName"></span>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="!hasMaterialPdf(item)">
+                                                        <p>
+                                                            <label class="text-slate-500 font-bold underline cursor-pointer hover:text-blue-600" title="แนบเอกสาร PO หรือใบส่งของสินค้า">
+                                                                📎 แนบ PO (PDF)
+                                                                <input type="file" @change="uploadMaterialPDF($event, item.id)" class="hidden" accept="application/pdf">
+                                                            </label>
+                                                        </p>
                                                     </template>
                                                 </div>
                                             </div>
@@ -184,22 +202,21 @@
                         <p class="text-xs text-slate-500 mt-1">กรอกข้อมูลผู้เบิก วันที่ทำรายการจริง วัตถุประสงค์ และเลือกพัสดุที่ต้องการทำรายการ</p>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
                         <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ชื่อผู้ทำรายการเบิก/รับ *</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5 h-5 flex items-center">ชื่อผู้ทำรายการเบิก/รับ *</label>
                             <input type="text" x-model="form.user" placeholder="ระบุชื่อ-นามสกุลจริง" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ไซต์งาน / โครงการ (Site) *</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5 h-5 flex items-center">ไซต์งาน / โครงการ (Site) *</label>
                             <input type="text" x-model="form.site" placeholder="เช่น BKK หรือ SITE-A" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm uppercase focus:ring-1 focus:ring-blue-500 outline-none">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">วันที่รับ / เบิกสินค้าจริง *</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5 h-5 flex items-center">วันที่รับ / เบิกสินค้าจริง *</label>
                             <input type="date" x-model="form.actionDate" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none">
                         </div>
-                        
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1.5">วัตถุประสงค์ *</label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5 h-5 flex items-center">วัตถุประสงค์ *</label>
                             <select x-model="form.purpose" class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none font-bold text-blue-700">
                                 <option value="Project">Project</option>
                                 <option value="O&M">O&M</option>
@@ -336,21 +353,30 @@
                                             </td>
                                             <td class="px-6 py-4 text-right">
                                                 <div class="flex flex-col gap-1.5">
-                                                    <div class="flex flex-wrap gap-1 justify-end">
+                                                    <div class="flex flex-wrap gap-1 justify-end items-center">
                                                         <button @click="printLogData(log)" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-2.5 py-1 rounded">
                                                             🖨️ สั่งพิมพ์เอกสาร
                                                         </button>
-                                                        <template x-if="!log.pdfData">
+                                                        
+                                                        <template x-if="!hasPdf(log)">
                                                             <label class="bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer inline-block" title="แนบไฟล์เอกสาร PDF">
                                                                 📎 แนบ PDF
                                                                 <input type="file" @change="uploadPDF($event, log.id)" class="hidden" accept="application/pdf">
                                                             </label>
                                                         </template>
-                                                        <template x-if="log.pdfData">
-                                                            <div class="flex items-center gap-1">
-                                                                <a :href="log.pdfData" :download="log.pdfName" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded inline-flex items-center gap-1" title="คลิกเพื่อดูเอกสารย้อนหลัง หรือดาวน์โหลดไฟล์">
-                                                                    👁️ ดู / 📥 โหลด PDF
-                                                                </a>
+
+                                                        <!-- [เปิดดูตัวไฟล์ PDF และปุ่มลบเพื่อแนบใหม่] -->
+                                                        <template x-if="hasPdf(log)">
+                                                            <div class="flex flex-col items-end">
+                                                                <div class="flex items-center gap-1">
+                                                                    <button @click="viewPDF(log.pdfData, log.pdfName)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded inline-flex items-center gap-1 cursor-pointer" title="คลิกเพื่อเปิดดูไฟล์ PDF เอกสารฉบับนี้ทันที">
+                                                                        👁️ ดู / 📥 โหลด PDF
+                                                                    </button>
+                                                                    <button @click="removePDF(log.id)" class="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold px-2 py-1 rounded cursor-pointer" title="ลบไฟล์ PDF เพื่ออัปโหลดใหม่">
+                                                                        🗑️ ลบไฟล์
+                                                                    </button>
+                                                                </div>
+                                                                <span class="text-[9px] text-slate-400 font-mono mt-0.5 truncate max-w-[150px]" x-text="log.pdfName" :title="log.pdfName"></span>
                                                             </div>
                                                         </template>
                                                     </div>
@@ -413,7 +439,6 @@
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-                            <!-- หมวด Project -->
                             <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-3">
                                 <span class="bg-blue-600 text-white text-xs font-black px-2.5 py-1 rounded">หมวด Project</span>
                                 <div>
@@ -426,7 +451,6 @@
                                 </div>
                             </div>
 
-                            <!-- หมวด O&M -->
                             <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100 space-y-3">
                                 <span class="bg-emerald-600 text-white text-xs font-black px-2.5 py-1 rounded">หมวด O&M</span>
                                 <div>
@@ -559,12 +583,20 @@
                                                 <span class="text-emerald-600 font-bold" x-text="'+' + (item.reserve_in || 0)"></span>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <template x-if="item.poPdfData">
-                                                    <a :href="item.poPdfData" :download="item.poPdfName" target="_blank" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded inline-flex items-center gap-1" title="ดูย้อนหลังหรือดาวน์โหลดไฟล์">
-                                                        👁️ ดู PO/Delivery
-                                                    </a>
+                                                <template x-if="hasMaterialPdf(item)">
+                                                    <div>
+                                                        <div class="flex items-center gap-1">
+                                                            <button @click="viewPDF(item.poPdfData, item.poPdfName)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded inline-flex items-center gap-1 cursor-pointer">
+                                                                👁️ ดู PO/Delivery
+                                                            </button>
+                                                            <button @click="removeMaterialPDF(item.id)" class="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold px-1.5 py-1 rounded cursor-pointer" title="ลบไฟล์เพื่ออัปโหลดใหม่">
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                        <span class="text-[9px] text-slate-400 font-mono block mt-0.5 truncate max-w-[150px]" x-text="item.poPdfName" :title="item.poPdfName"></span>
+                                                    </div>
                                                 </template>
-                                                <template x-if="!item.poPdfData">
+                                                <template x-if="!hasMaterialPdf(item)">
                                                     <label class="bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer inline-block" title="แนบเอกสาร PO หรือใบส่งของสินค้า">
                                                         📎 แนบ PO (PDF)
                                                         <input type="file" @change="uploadMaterialPDF($event, item.id)" class="hidden" accept="application/pdf">
@@ -697,10 +729,8 @@
                     </table>
                 </div>
 
-                <!-- โซนเซ็นเอกสาร สมมาตร 3 ช่อง พร้อมพื้นที่ Sign และดึงชื่อตามหมวด Project/O&M ล็อกถาวร -->
                 <div class="mt-auto pt-6 space-y-4">
                     <div class="grid grid-cols-3 gap-6 text-xs text-center border-t border-slate-300 pt-6">
-                        <!-- ช่องซ้ายสุด: ผู้เบิกสินค้า/รับสินค้า -->
                         <div class="flex flex-col items-center justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้ทำรายการเบิก / รับสินค้า</p>
                             <div class="h-16 flex items-end justify-center w-full">
@@ -710,7 +740,6 @@
                             <p class="text-slate-500 text-[10px] mt-2">วันที่ ........ / ........ / .............</p>
                         </div>
                         
-                        <!-- ช่องกลาง: ผู้ตรวจสอบสินค้า (ดึงตามหมวด Project/O&M) -->
                         <div class="flex flex-col items-center justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้ตรวจสอบสินค้า</p>
                             <div class="h-16 flex items-end justify-center w-full">
@@ -720,8 +749,7 @@
                             <p class="text-slate-500 text-[10px] mt-2">วันที่ ........ / ........ / .............</p>
                         </div>
 
-                        <!-- ช่องขวาสุด: ผู้อนุมัติ (ดึงตามหมวด Project/O&M) -->
-                        <div class="flex flex-col items-center justify-end space-y-1.5">
+                        <div class="flex flex-col items-end justify-end space-y-1.5">
                             <p class="font-bold text-slate-800">ผู้อนุมัติ</p>
                             <div class="h-16 flex items-end justify-center w-full">
                                 <p class="text-slate-400 w-full">....................................................</p>
