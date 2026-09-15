@@ -455,20 +455,20 @@ function cnesApp() {
             const d = String(item.poPdfData || '').trim();
             const n = String(item.poPdfName || '').trim();
             const legacyLink = String(item['PO PDF Name'] || '').trim();
-            return (d.startsWith('http') || d.startsWith('data:') || legacyLink.startsWith('http') || n.length > 0);
+            return (d.startsWith('http') || d.startsWith('data:') || legacyLink.startsWith('http') || n.length > 0 || d.length > 0);
         },
 
-        // 👁️ [เปิดดูไฟล์: รองรับ Google Drive, Microsoft Teams, SharePoint และ Base64]
+        // 👁️ [เปิดดูไฟล์: รองรับ Direct URL, Base64 และค้นหาเปิดไฟล์ Microsoft Teams / SharePoint อัตโนมัติทุกอุปกรณ์]
         viewPDF(pdfData, pdfName) {
             let targetData = String(pdfData || '').trim();
-            const fileName = String(pdfName || 'Document.pdf').trim();
+            const fileName = String(pdfName || '').trim();
 
-            // หาก pdfData ว่าง แต่ fileName เป็นลิงก์ URL
+            // 1. ถ้า targetData ไม่ใช่ URL แต่ fileName เป็น URL ให้สลับมาใช้ fileName
             if (!targetData.startsWith('http') && fileName.startsWith('http')) {
                 targetData = fileName;
             }
 
-            // 1. ถ้ามี URL ของ Google Drive, SharePoint หรือ Microsoft Teams
+            // 2. ถ้าเป็น Direct URL (SharePoint, Microsoft Teams, Google Drive) -> เปิดดูทันที
             if (targetData.startsWith('http://') || targetData.startsWith('https://') || targetData.startsWith('msteams:')) {
                 let directUrl = targetData;
                 if (targetData.includes('drive.google.com')) {
@@ -482,7 +482,7 @@ function cnesApp() {
                 return;
             }
 
-            // 2. ถ้าเป็น Base64
+            // 3. ถ้าเป็น Base64
             if (targetData.includes('base64,') || targetData.startsWith('data:application/pdf')) {
                 try {
                     const base64Parts = targetData.split('base64,');
@@ -498,7 +498,7 @@ function cnesApp() {
                     if (!win) {
                         const link = document.createElement('a');
                         link.href = blobUrl;
-                        link.download = fileName;
+                        link.download = fileName || 'Document.pdf';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
@@ -508,6 +508,25 @@ function cnesApp() {
                 } catch (e) {
                     console.error("Error opening base64 PDF", e);
                 }
+            }
+
+            // 4. 🔥 [จุดแก้ปัญหาตรงนี้!] กรณีมีชื่อไฟล์ เช่น [PO]_INV-001_1848_001.pdf หรือ 1541_001
+            // ระบบจะสกัดรหัสเอกสาร แล้วเปิดไฟล์ใน Microsoft Teams / SharePoint ขององค์กรทันทีทุกอุปกรณ์
+            const fileIdentifier = fileName || targetData;
+            if (fileIdentifier && fileIdentifier !== '' && fileIdentifier !== 'null' && fileIdentifier !== 'undefined') {
+                // สกัดชื่อไฟล์ เช่น [PO]_INV-001_1848_001.pdf -> 1848_001
+                let cleanName = fileIdentifier.replace(/^\[PO\]_/, '').replace(/\.pdf$/i, '').trim();
+                let searchKeyword = cleanName;
+                
+                const parts = cleanName.split('_');
+                if (parts.length >= 3) {
+                    searchKeyword = parts.slice(parts.length - 2).join('_'); // เช่น 1848_001
+                }
+
+                const teamsSearchUrl = `https://cnesthai.sharepoint.com/sites/OperationTeam237/_layouts/15/search.aspx?q=${encodeURIComponent(searchKeyword || cleanName)}`;
+                const win = window.open(teamsSearchUrl, '_blank');
+                if (!win) window.location.href = teamsSearchUrl;
+                return;
             }
 
             alert('ไม่พบลิงก์ไฟล์เอกสาร PDF หรือกำลังประมวลผล กรุณาลองใหม่อีกครั้ง');
