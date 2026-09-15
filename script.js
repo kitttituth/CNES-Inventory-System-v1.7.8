@@ -454,14 +454,22 @@ function cnesApp() {
             if (!item) return false;
             const d = String(item.poPdfData || '').trim();
             const n = String(item.poPdfName || '').trim();
-            return (d.startsWith('http') || d.startsWith('data:') || n.length > 0);
+            const legacyLink = String(item['PO PDF Name'] || '').trim();
+            return (d.startsWith('http') || d.startsWith('data:') || legacyLink.startsWith('http') || n.length > 0);
         },
 
+        // 👁️ [เปิดดูไฟล์: รองรับ Google Drive, Microsoft Teams, SharePoint และ Base64]
         viewPDF(pdfData, pdfName) {
             let targetData = String(pdfData || '').trim();
             const fileName = String(pdfName || 'Document.pdf').trim();
 
-            if (targetData.startsWith('http://') || targetData.startsWith('https://')) {
+            // หาก pdfData ว่าง แต่ fileName เป็นลิงก์ URL
+            if (!targetData.startsWith('http') && fileName.startsWith('http')) {
+                targetData = fileName;
+            }
+
+            // 1. ถ้ามี URL ของ Google Drive, SharePoint หรือ Microsoft Teams
+            if (targetData.startsWith('http://') || targetData.startsWith('https://') || targetData.startsWith('msteams:')) {
                 let directUrl = targetData;
                 if (targetData.includes('drive.google.com')) {
                     const match = targetData.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -474,6 +482,7 @@ function cnesApp() {
                 return;
             }
 
+            // 2. ถ้าเป็น Base64
             if (targetData.includes('base64,') || targetData.startsWith('data:application/pdf')) {
                 try {
                     const base64Parts = targetData.split('base64,');
@@ -504,6 +513,7 @@ function cnesApp() {
             alert('ไม่พบลิงก์ไฟล์เอกสาร PDF หรือกำลังประมวลผล กรุณาลองใหม่อีกครั้ง');
         },
 
+        // 📥 [อัปโหลดแนบใบเบิก/รับสินค้า]
         uploadPDF(event, logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -555,6 +565,7 @@ function cnesApp() {
             reader.readAsDataURL(file);
         },
 
+        // 🗑️ [ลบไฟล์ PDF ใบเบิก/รับสินค้า]
         removePDF(logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -566,6 +577,7 @@ function cnesApp() {
             }
         },
 
+        // 📥 [อัปโหลดแนบเอกสาร PO / Delivery]
         uploadMaterialPDF(event, itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -616,6 +628,7 @@ function cnesApp() {
             reader.readAsDataURL(file);
         },
 
+        // 🗑️ [ลบเอกสาร PO / Delivery]
         removeMaterialPDF(itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -637,7 +650,7 @@ function cnesApp() {
             }, 500);
         },
 
-        // [ปรับปรุงข้อ 1] กำหนดรหัสสินค้า: หากผู้ใช้พิมพ์ไว้แล้วจะไม่ถูกเขียนทับ เว้นแต่กดสั่งคำนวณ (force = true)
+        // สร้างรหัสอัตโนมัติ (ไม่เขียนทับหากมีรหัสที่พิมพ์เองไว้แล้ว)
         generateItemCode(force = false) {
             if (!this.newItem.category) return;
             if (this.newItem.itemCode && this.newItem.itemCode.trim() !== '' && !force) return;
@@ -646,7 +659,7 @@ function cnesApp() {
             this.newItem.itemCode = `${prefix}-${String(count).padStart(3, '0')}`;
         },
 
-        // [ปรับปรุงข้อ 1] บันทึกและแก้ไขรหัสสินค้าของรายการในสต๊อกได้ทันที
+        // แก้ไขและกำหนดรหัสพัสดุเดิมในตารางได้ทันที
         updateItemCode(item) {
             if (!item || !item.itemCode) return;
             item.itemCode = item.itemCode.trim().toUpperCase();
@@ -731,7 +744,7 @@ function cnesApp() {
             }
         },
 
-        // [ปรับปรุงข้อ 2] ส่งออกเอกสาร Excel (CNES_Stock_Report.xls) รูปแบบสำหรับตรวจนับสต๊อกและเช็คสินค้าโดยเฉพาะ
+        // ส่งออกเอกสาร Excel (CNES_Stock_Report.xls) สำหรับตรวจนับสต๊อก
         downloadCSV() {
             if (this.inventory.length === 0) return alert('ไม่มีข้อมูลสำหรับส่งออก!');
 
@@ -740,7 +753,6 @@ function cnesApp() {
             const timeStr = now.toLocaleTimeString('th-TH');
             const fileDate = now.toISOString().split('T')[0];
 
-            // จัดเรียงข้อมูลตามหมวดหมู่ -> ตำแหน่งจัดเก็บ -> รหัสพัสดุ เพื่อให้ตรวจนับสินค้าในคลังได้อย่างเป็นระบบ
             const sortedItems = this.inventory.slice().sort((a, b) => {
                 if ((a.category || '') !== (b.category || '')) {
                     return (a.category || '').localeCompare(b.category || '');
@@ -849,7 +861,6 @@ function cnesApp() {
                 const reserved = parseInt(item.reserve_out) || 0;
                 const available = Math.max(0, balance - reserved);
 
-                // แทรกแถวคั่นหัวหมวดหมู่เพื่อให้อ่านและเดินเช็คของได้ง่าย
                 if (item.category !== currentCat) {
                     currentCat = item.category;
                     html += `
@@ -947,5 +958,5 @@ function cnesApp() {
         },
 
         t(en, th) { return `${en} (${th})`; }
-    }
+    };
 }
