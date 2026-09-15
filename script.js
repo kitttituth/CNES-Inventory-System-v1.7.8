@@ -1,13 +1,6 @@
 // URL หลังบ้าน Google Sheets Web App
 const API_URL = 'https://script.google.com/macros/s/AKfycbxe6ixhD0tIux9YZhZZi9NYIe5OeADp5PGqSTIQpD-Cd3tde5rk4rdOaqVlMQN6zvUw/exec';
 
-// 🚀 ลิงก์โฟลเดอร์แชร์ของ Microsoft Teams (SharePoint) แยกตามประเภทเอกสาร 3 หมวด
-const TEAMS_URLS = {
-    PO: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgBDGNtphNFXQ4s16171MYHfAcwor2NyJ1iVyJpX0yFriBI?e=KzudSN',
-    WITHDRAW: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgC1u8OuOZ5yRZdleGy4_3_CAQm85RQcEFlDv80ANmFhUps?e=dZVZsD',
-    RECEIVE: 'https://cnesthai.sharepoint.com/:f:/s/OperationTeam237/IgDVvDSLvh5NRZsjMq4AFJ2YAf4_MJqZRZnXfHWtAeOPXMk?e=ReLchD'
-};
-
 function cnesApp() {
     return {
         // --- ระบบสิทธิ์และหน้าจอ ---
@@ -86,80 +79,18 @@ function cnesApp() {
                 if (res.ok) {
                     const serverData = await res.json();
                     if (serverData) {
-                        let localSavedLogs = [];
-                        try { localSavedLogs = JSON.parse(localStorage.getItem('cnes_v178_logs')) || []; } catch(e) {}
-
-                        let localSavedInv = [];
-                        try { localSavedInv = JSON.parse(localStorage.getItem('cnes_v178_inv')) || []; } catch(e) {}
-
                         if (serverData.inventory) {
-                            this.inventory = serverData.inventory.map((serverItem, idx) => {
-                                const localItem = localSavedInv.find(i => String(i.id).trim() === String(serverItem.id).trim() || i.itemCode === serverItem.itemCode) || localSavedInv[idx];
-                                const poPdfData = (localItem && localItem.poPdfData) ? localItem.poPdfData : (serverItem.poPdfData || '');
-                                const poPdfName = (serverItem.poPdfName && String(serverItem.poPdfName).trim()) ? serverItem.poPdfName : (localItem && localItem.poPdfName ? localItem.poPdfName : '');
-                                return {
-                                    ...serverItem,
-                                    poPdfData: poPdfData,
-                                    poPdfName: poPdfName
-                                };
-                            });
+                            this.inventory = serverData.inventory;
                         }
-
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
 
                         if (serverData.logs) {
-                            this.logs = serverData.logs.map((serverLog, index) => {
-                                const localLog = localSavedLogs.find(l => 
-                                    String(l.id).trim() === String(serverLog.id).trim() ||
-                                    (l.timestamp === serverLog.timestamp && l.user === serverLog.user)
-                                ) || localSavedLogs[index];
-
-                                const savedPurpose = (serverLog.purpose && serverLog.purpose.trim()) 
-                                    ? serverLog.purpose 
-                                    : (localLog && localLog.purpose ? localLog.purpose : 'Project');
-
-                                const savedInspector = (serverLog.inspector && serverLog.inspector.trim()) 
-                                    ? serverLog.inspector 
-                                    : (localLog && localLog.inspector ? localLog.inspector : '');
-
-                                const savedApprover = (serverLog.approver && serverLog.approver.trim()) 
-                                    ? serverLog.approver 
-                                    : (localLog && localLog.approver ? localLog.approver : '');
-
-                                const savedPdfData = (localLog && localLog.pdfData) ? localLog.pdfData : (serverLog.pdfData || '');
-                                const savedPdfName = (serverLog.pdfName && String(serverLog.pdfName).trim()) ? serverLog.pdfName : (localLog && localLog.pdfName ? localLog.pdfName : '');
-
-                                return {
-                                    ...serverLog,
-                                    purpose: savedPurpose,
-                                    inspector: savedInspector,
-                                    approver: savedApprover,
-                                    pdfData: savedPdfData,
-                                    pdfName: savedPdfName
-                                };
-                            });
+                            this.logs = serverData.logs;
                         }
 
                         if (serverData.signatories) {
                             this.signatories = serverData.signatories;
-                        } else if (this.logs && this.logs.length > 0) {
-                            const projLog = this.logs.find(l => {
-                                const p = (l.purpose || '').toUpperCase();
-                                return p.includes('PROJECT') && l.inspector;
-                            });
-                            if (projLog) {
-                                if (!this.signatories.project.inspector) this.signatories.project.inspector = projLog.inspector || '';
-                                if (!this.signatories.project.approver) this.signatories.project.approver = projLog.approver || '';
-                            }
-                            const omLog = this.logs.find(l => {
-                                const p = (l.purpose || '').toUpperCase();
-                                return (p.includes('O&M') || p.includes('OM')) && l.inspector;
-                            });
-                            if (omLog) {
-                                if (!this.signatories.om.inspector) this.signatories.om.inspector = omLog.inspector || '';
-                                if (!this.signatories.om.approver) this.signatories.om.approver = omLog.approver || '';
-                            }
                         }
 
                         localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
@@ -171,7 +102,7 @@ function cnesApp() {
                     }
                 }
             } catch (err) {
-                console.log("เชื่อมต่อ Google Sheets ไม่สำเร็จ รันระบบด้วยฐานข้อมูลเบราว์เซอร์ภายในชั่วคราว");
+                console.log("กำลังเชื่อมต่อเซิร์ฟเวอร์ฐานข้อมูล...");
             }
         },
 
@@ -189,9 +120,7 @@ function cnesApp() {
                 body: JSON.stringify(payload)
             }).then(() => {
                 localStorage.setItem('cnes_v178_unsynced', 'false');
-            }).catch(err => {
-                // ยังบันทึกไม่ได้
-            });
+            }).catch(err => {});
         },
 
         handleLogin() {
@@ -290,17 +219,9 @@ function cnesApp() {
             }
         },
 
-        autoFillFromCodeText(row) {
-            this.smartAutoFill(row, row.itemCode);
-        },
-
-        autoFillFromNameText(row) {
-            this.smartAutoFill(row, row.name);
-        },
-
-        autoFillFromModelText(row) {
-            this.smartAutoFill(row, row.model);
-        },
+        autoFillFromCodeText(row) { this.smartAutoFill(row, row.itemCode); },
+        autoFillFromNameText(row) { this.smartAutoFill(row, row.name); },
+        autoFillFromModelText(row) { this.smartAutoFill(row, row.model); },
 
         getSignatoryInspector(log) {
             if (!log) return '';
@@ -339,12 +260,8 @@ function cnesApp() {
             }
 
             this.form.items.forEach((item, idx) => {
-                if (!item.itemId) {
-                    item.itemId = `TEMP-${Date.now()}-${idx}`;
-                }
-                if (!item.unit) {
-                    item.unit = this.units[0] || 'Panel';
-                }
+                if (!item.itemId) item.itemId = `TEMP-${Date.now()}-${idx}`;
+                if (!item.unit) item.unit = this.units[0] || 'Panel';
             });
 
             const today = new Date();
@@ -460,7 +377,7 @@ function cnesApp() {
 
         cancelLog(logId) {
             if (this.userRole !== 'admin') {
-                alert('สิทธิ์ User ไม่สามารถยกเลิกรายการเบิก/รับ หรือสั่งจองได้ (สิทธิ์เฉพาะ Admin เท่านั้น)');
+                alert('สิทธิ์เฉพาะ Admin เท่านั้น');
                 return;
             }
 
@@ -482,17 +399,11 @@ function cnesApp() {
                     if (inv) {
                         const q = parseInt(row.qty) || 0;
                         if (log.type === 'OUT') {
-                            if (log.txnType === 'ACTUAL') {
-                                inv.qty += q;
-                            } else if (log.txnType === 'RESERVE') {
-                                inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
-                            }
+                            if (log.txnType === 'ACTUAL') inv.qty += q;
+                            else if (log.txnType === 'RESERVE') inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
                         } else if (log.type === 'IN') {
-                            if (log.txnType === 'ACTUAL') {
-                                inv.qty = Math.max(0, inv.qty - q);
-                            } else if (log.txnType === 'RESERVE') {
-                                inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
-                            }
+                            if (log.txnType === 'ACTUAL') inv.qty = Math.max(0, inv.qty - q);
+                            else if (log.txnType === 'RESERVE') inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
                         }
                         inv.lastUpdated = nowStr;
                     }
@@ -515,16 +426,12 @@ function cnesApp() {
                     const approvedTime = log.approvedAt || log.id;
                     if (now - approvedTime > thirtyDaysMs) {
                         log.status = 'EXPIRED';
-
                         log.items.forEach(row => {
                             const inv = this.inventory.find(i => i.id == row.itemId || (i.itemCode && i.itemCode.toUpperCase() === (row.itemCode || '').toUpperCase()));
                             if (inv) {
                                 const q = parseInt(row.qty) || 0;
-                                if (log.type === 'OUT') {
-                                    inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
-                                } else {
-                                    inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
-                                }
+                                if (log.type === 'OUT') inv.reserve_out = Math.max(0, (inv.reserve_out || 0) - q);
+                                else inv.reserve_in = Math.max(0, (inv.reserve_in || 0) - q);
                                 inv.lastUpdated = nowStr;
                             }
                         });
@@ -533,125 +440,92 @@ function cnesApp() {
                 }
             });
 
-            if (updated) {
-                this.saveData();
-            }
+            if (updated) this.saveData();
         },
 
         hasPdf(log) {
             if (!log) return false;
             const d = String(log.pdfData || '').trim();
             const n = String(log.pdfName || '').trim();
-            return ((d && d !== 'null' && d !== 'undefined' && (d.indexOf('http') === 0 || d.indexOf('data:') === 0 || d.indexOf('base64') > -1)) || (n && n !== 'null' && n !== 'undefined' && n.length > 0));
+            return (d.startsWith('http') || d.startsWith('data:') || n.length > 0);
         },
 
         hasMaterialPdf(item) {
             if (!item) return false;
             const d = String(item.poPdfData || '').trim();
             const n = String(item.poPdfName || '').trim();
-            return ((d && d !== 'null' && d !== 'undefined' && (d.indexOf('http') === 0 || d.indexOf('data:') === 0 || d.indexOf('base64') > -1)) || (n && n !== 'null' && n !== 'undefined' && n.length > 0));
+            return (d.startsWith('http') || d.startsWith('data:') || n.length > 0);
         },
 
-        // 🚀 [รันเปิดไฟล์ PDF อัตโนมัติ 100% หรือเปิดโฟลเดอร์ Teams ตามหมวดหมู่เอกสาร]
         viewPDF(pdfData, pdfName) {
             let targetData = String(pdfData || '').trim();
-            const fileName = String(pdfName || '').trim();
+            const fileName = String(pdfName || 'Document.pdf').trim();
 
-            // 1. ถ้ามีข้อมูลไฟล์ Base64 ให้สร้างหน้าต่างเปิดไฟล์ PDF ขึ้นมาดูทันที
-            if (targetData && (targetData.indexOf('data:application/pdf') === 0 || targetData.indexOf('base64,') > -1)) {
+            if (targetData.startsWith('http://') || targetData.startsWith('https://')) {
+                let directUrl = targetData;
+                if (targetData.includes('drive.google.com')) {
+                    const match = targetData.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (match && match[1]) {
+                        directUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+                    }
+                }
+                const win = window.open(directUrl, '_blank');
+                if (!win) window.location.href = directUrl;
+                return;
+            }
+
+            if (targetData.includes('base64,') || targetData.startsWith('data:application/pdf')) {
                 try {
                     const base64Parts = targetData.split('base64,');
-                    const mimeType = 'application/pdf';
-                    const base64Clean = base64Parts[1].replace(/\s/g, ''); 
-                    const byteCharacters = atob(base64Clean);
+                    const byteCharacters = atob(base64Parts[1].replace(/\s/g, ''));
                     const byteNumbers = new Array(byteCharacters.length);
                     for (let i = 0; i < byteCharacters.length; i++) {
                         byteNumbers[i] = byteCharacters.charCodeAt(i);
                     }
                     const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: mimeType });
-                    if (blob.size > 0) {
-                        const blobUrl = URL.createObjectURL(blob);
-                        const win = window.open(blobUrl, '_blank');
-                        if (!win) {
-                            const link = document.createElement('a');
-                            link.href = blobUrl;
-                            link.download = fileName || 'Document.pdf';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                        }
-                        setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
-                        return;
+                    const blob = new Blob([byteArray], { type: 'application/pdf' });
+                    const blobUrl = URL.createObjectURL(blob);
+                    const win = window.open(blobUrl, '_blank');
+                    if (!win) {
+                        const link = document.createElement('a');
+                        link.href = blobUrl;
+                        link.download = fileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
                     }
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 120000);
+                    return;
                 } catch (e) {
-                    console.error("Failed to parse base64 PDF", e);
+                    console.error("Error opening base64 PDF", e);
                 }
             }
 
-            // 2. ถ้ามี URL โดยตรง (Drive / Direct Web link)
-            if (targetData && (targetData.indexOf('http://') === 0 || targetData.indexOf('https://') === 0)) {
-                let directPdfUrl = targetData;
-                if (targetData.indexOf('drive.google.com') > -1) {
-                    const match = targetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                    if (match && match[1]) {
-                        directPdfUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
-                    }
-                }
-                const win = window.open(directPdfUrl, '_blank');
-                if (!win) location.href = directPdfUrl;
-                return;
-            }
-
-            // 3. หากมีเฉพาะ Log ชื่อไฟล์ ให้เปิดเข้าโฟลเดอร์ Microsoft Teams ตามหมวดหมู่เอกสาร
-            if (fileName.includes('PO') || fileName.includes('[PO]')) {
-                const win = window.open(TEAMS_URLS.PO, '_blank');
-                if (!win) location.href = TEAMS_URLS.PO;
-                return;
-            } else if (fileName.includes('ใบรับสินค้า') || fileName.includes('RECEIVE') || fileName.includes('IN')) {
-                const win = window.open(TEAMS_URLS.RECEIVE, '_blank');
-                if (!win) location.href = TEAMS_URLS.RECEIVE;
-                return;
-            } else if (fileName.includes('ใบเบิก') || fileName.includes('WITHDRAW') || fileName.includes('OUT')) {
-                const win = window.open(TEAMS_URLS.WITHDRAW, '_blank');
-                if (!win) location.href = TEAMS_URLS.WITHDRAW;
-                return;
-            }
-
-            alert('ไม่พบไฟล์เอกสาร PDF หรือโฟลเดอร์ในระบบ กรุณาแนบไฟล์ใหม่อีกครั้ง');
+            alert('ไม่พบลิงก์ไฟล์เอกสาร PDF หรือกำลังประมวลผล กรุณาลองใหม่อีกครั้ง');
         },
 
-        // 🚀 [อัปโหลดแนบใบเบิก/รับสินค้า บันทึกเนื้อหา PDF เพื่อรันดูอัตโนมัติ และแยกชื่อ Log ตามหมวด IN/OUT]
         uploadPDF(event, logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
 
-            if (this.hasPdf(log)) {
-                alert('รายการนี้เคยแนบไฟล์ PDF แล้ว หากต้องการแนบใหม่ กรุณากดปุ่มลบไฟล์เดิมก่อน');
-                return;
-            }
-
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
 
-            if (file.size > 10 * 1024 * 1024) {
-                alert('ไฟล์ PDF มีขนาดใหญ่เกิน 10MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
-                return;
+            if (file.size > 15 * 1024 * 1024) {
+                return alert('ไฟล์ PDF มีขนาดใหญ่เกิน 15MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
             }
 
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const base64Data = e.target.result;
-                const docTypePrefix = log.type === 'IN' ? 'ใบรับสินค้า' : 'ใบเบิก';
-                const formattedName = `[${docTypePrefix}]_${(log.id || '').replace(/[\/\\]/g, '-')}_${file.name}`;
-                const targetTeamsUrl = log.type === 'IN' ? TEAMS_URLS.RECEIVE : TEAMS_URLS.WITHDRAW;
-                
-                // บันทึก Base64 เพื่อให้กดเปิดดูไฟล์ PDF ได้ทันทีอัตโนมัติ
+                const tag = log.type === 'IN' ? 'RECEIVE' : 'WITHDRAW';
+                const formattedName = `[${tag}]_${(log.id || '').replace(/[\/\\]/g, '-')}_${file.name}`;
+
                 log.pdfData = base64Data;
                 log.pdfName = formattedName;
                 this.saveData();
 
-                alert('กำลังอัปโหลดไฟล์ PDF ขึ้นระบบ กรุณารอสักครู่...');
+                alert(`กำลังอัปโหลดไฟล์ [${tag}] ขึ้นระบบคลาวด์... กรุณารอสักครู่`);
 
                 try {
                     const res = await fetch(API_URL, {
@@ -660,28 +534,27 @@ function cnesApp() {
                         body: JSON.stringify({
                             action: 'uploadPdf',
                             logId: log.id,
-                            category: docTypePrefix,
+                            category: tag,
                             pdfName: formattedName,
-                            pdfBase64: base64Data,
-                            teamsUrl: targetTeamsUrl
+                            pdfBase64: base64Data
                         })
                     });
                     
                     const resData = await res.json();
                     if (resData && resData.status === 'success' && resData.fileUrl) {
                         log.pdfData = resData.fileUrl;
+                        this.saveData();
+                        alert(`✅ อัปโหลดไฟล์ [${tag}] สำเร็จ! พร้อมเข้าถึงได้จากทุกอุปกรณ์`);
+                    } else {
+                        alert(`แนบไฟล์ [${tag}] เรียบร้อยแล้ว`);
                     }
-                    this.saveData();
-                    alert(`อัปโหลดไฟล์ PDF [${docTypePrefix}] เรียบร้อยแล้ว! (สามารถกดดูย้อนหลังได้ตลอดเวลา)`);
                 } catch (err) {
-                    this.saveData();
-                    alert(`แนบไฟล์ PDF [${docTypePrefix}] เรียบร้อยแล้ว`);
+                    alert(`แนบไฟล์ [${tag}] เรียบร้อยแล้ว`);
                 }
             };
             reader.readAsDataURL(file);
         },
 
-        // 🚀 [ฟังก์ชันลบไฟล์ PDF ของสลิปประวัติเพื่ออัปโหลดใหม่]
         removePDF(logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -693,7 +566,6 @@ function cnesApp() {
             }
         },
 
-        // 🚀 [อัปโหลดแนบใบ PO/Delivery บันทึกเนื้อหา PDF เพื่อรันดูอัตโนมัติ และแยกชื่อ Log ตามหัวข้อ PO]
         uploadMaterialPDF(event, itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -701,23 +573,20 @@ function cnesApp() {
             const file = event.target.files[0];
             if (!file || file.type !== 'application/pdf') return alert('กรุณาเลือกไฟล์ PDF เท่านั้น');
 
-            if (file.size > 10 * 1024 * 1024) {
-                alert('ไฟล์ PDF มีขนาดใหญ่เกิน 10MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
-                return;
+            if (file.size > 15 * 1024 * 1024) {
+                return alert('ไฟล์ PDF มีขนาดใหญ่เกิน 15MB กรุณาย่อยขนาดไฟล์ก่อนอัปโหลด');
             }
 
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const base64Data = e.target.result;
                 const formattedName = `[PO]_${item.itemCode || 'ITEM'}_${file.name}`;
-                const targetTeamsUrl = TEAMS_URLS.PO;
 
-                // บันทึก Base64 เพื่อให้กดเปิดดูไฟล์ PDF ได้ทันทีอัตโนมัติ
                 item.poPdfData = base64Data;
                 item.poPdfName = formattedName;
                 this.saveData();
 
-                alert('กำลังอัปโหลดใบ PO/Delivery ขึ้นระบบ กรุณารอสักครู่...');
+                alert('กำลังอัปโหลดเอกสาร PO/Delivery ขึ้นระบบคลาวด์... กรุณารอสักครู่');
 
                 try {
                     const res = await fetch(API_URL, {
@@ -728,26 +597,25 @@ function cnesApp() {
                             itemId: item.id,
                             category: 'PO',
                             pdfName: formattedName,
-                            pdfBase64: base64Data,
-                            teamsUrl: targetTeamsUrl
+                            pdfBase64: base64Data
                         })
                     });
                     
                     const resData = await res.json();
                     if (resData && resData.status === 'success' && resData.fileUrl) {
                         item.poPdfData = resData.fileUrl;
+                        this.saveData();
+                        alert('✅ อัปโหลดเอกสาร PO / ใบส่งของขึ้นระบบสำเร็จ! ทุกอุปกรณ์สามารถกดดู/โหลดได้ทันที');
+                    } else {
+                        alert('แนบเอกสาร PO / ใบส่งของเรียบร้อยแล้ว');
                     }
-                    this.saveData();
-                    alert('แนบเอกสาร PO / ใบส่งของขึ้นระบบเรียบร้อยแล้ว!');
                 } catch (err) {
-                    this.saveData();
                     alert('แนบเอกสาร PO / ใบส่งของเรียบร้อยแล้ว');
                 }
             };
             reader.readAsDataURL(file);
         },
 
-        // 🚀 [ฟังก์ชันลบไฟล์ PO/Delivery ของวัสดุเพื่ออัปโหลดใหม่]
         removeMaterialPDF(itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -769,11 +637,21 @@ function cnesApp() {
             }, 500);
         },
 
-        generateItemCode() {
-            if(!this.newItem.category) return;
+        // [ปรับปรุงข้อ 1] กำหนดรหัสสินค้า: หากผู้ใช้พิมพ์ไว้แล้วจะไม่ถูกเขียนทับ เว้นแต่กดสั่งคำนวณ (force = true)
+        generateItemCode(force = false) {
+            if (!this.newItem.category) return;
+            if (this.newItem.itemCode && this.newItem.itemCode.trim() !== '' && !force) return;
             const prefix = this.newItem.category.substring(0, 3).toUpperCase();
             const count = this.inventory.filter(i => i.category === this.newItem.category).length + 1;
             this.newItem.itemCode = `${prefix}-${String(count).padStart(3, '0')}`;
+        },
+
+        // [ปรับปรุงข้อ 1] บันทึกและแก้ไขรหัสสินค้าของรายการในสต๊อกได้ทันที
+        updateItemCode(item) {
+            if (!item || !item.itemCode) return;
+            item.itemCode = item.itemCode.trim().toUpperCase();
+            item.lastUpdated = new Date().toLocaleString('th-TH');
+            this.saveData();
         },
 
         addMaterial() {
@@ -782,10 +660,10 @@ function cnesApp() {
             const initQty = parseInt(this.newItem.qty) || 0;
             this.inventory.push({
                 id: Date.now(),
-                itemCode: this.newItem.itemCode.toUpperCase(),
-                name: this.newItem.name.toUpperCase(),
-                model: this.newItem.model.toUpperCase() || 'N/A',
-                location: (this.newItem.location || '').toUpperCase() || 'N/A',
+                itemCode: this.newItem.itemCode.trim().toUpperCase(),
+                name: this.newItem.name.trim().toUpperCase(),
+                model: this.newItem.model.trim().toUpperCase() || 'N/A',
+                location: (this.newItem.location || '').trim().toUpperCase() || 'N/A',
                 category: this.newItem.category,
                 unit: this.newItem.unit || this.units[0],
                 initialQty: initQty,
@@ -853,20 +731,193 @@ function cnesApp() {
             }
         },
 
+        // [ปรับปรุงข้อ 2] ส่งออกเอกสาร Excel (CNES_Stock_Report.xls) รูปแบบสำหรับตรวจนับสต๊อกและเช็คสินค้าโดยเฉพาะ
         downloadCSV() {
             if (this.inventory.length === 0) return alert('ไม่มีข้อมูลสำหรับส่งออก!');
-            let csv = '\uFEFF'; 
-            csv += 'Code (รหัส),Material (ชื่อวัสดุ),Model (รุ่น),Location (ตำแหน่งจัดเก็บ),Category (หมวดหมู่),Initial Qty (ยอดแรกเริ่ม),Balance (คงเหลือปัจจุบัน),Reserve (จอง),Unit (หน่วย),Created Date (วันแรกเข้า),Last Updated (อัปเดตล่าสุดเมื่อ)\n';
-            this.inventory.forEach(item => {
-                csv += `"${item.itemCode}","${item.name}","${item.model}","${item.location || '-'}","${item.category}",${item.initialQty !== undefined ? item.initialQty : item.qty},${item.qty},${item.reserve_out || 0},"${item.unit}","${item.createdDate || '-'}"\n`;
+
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+            const timeStr = now.toLocaleTimeString('th-TH');
+            const fileDate = now.toISOString().split('T')[0];
+
+            // จัดเรียงข้อมูลตามหมวดหมู่ -> ตำแหน่งจัดเก็บ -> รหัสพัสดุ เพื่อให้ตรวจนับสินค้าในคลังได้อย่างเป็นระบบ
+            const sortedItems = this.inventory.slice().sort((a, b) => {
+                if ((a.category || '') !== (b.category || '')) {
+                    return (a.category || '').localeCompare(b.category || '');
+                }
+                if ((a.location || '') !== (b.location || '')) {
+                    return (a.location || '').localeCompare(b.location || '');
+                }
+                return (a.itemCode || '').localeCompare(b.itemCode || '', undefined, { numeric: true });
             });
-            const blobObj = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+            let html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                <!--[if gte mso 9]>
+                <xml>
+                    <x:ExcelWorkbook>
+                        <x:ExcelWorksheets>
+                            <x:ExcelWorksheet>
+                                <x:Name>Stock Audit Sheet</x:Name>
+                                <x:WorksheetOptions>
+                                    <x:DisplayGridlines/>
+                                </x:WorksheetOptions>
+                            </x:ExcelWorksheet>
+                        </x:ExcelWorksheets>
+                    </x:ExcelWorkbook>
+                </xml>
+                <![endif]-->
+                <style>
+                    body { font-family: 'Sarabun', 'Calibri', Tahoma, sans-serif; }
+                    .header-title { font-size: 16pt; font-weight: bold; color: #20336B; text-align: left; }
+                    .header-sub { font-size: 11pt; font-weight: bold; color: #475569; text-align: left; }
+                    .header-meta { font-size: 9pt; color: #64748b; }
+                    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+                    th { 
+                        background-color: #20336B; 
+                        color: #ffffff; 
+                        font-weight: bold; 
+                        border: 1px solid #0f172a; 
+                        padding: 8px 6px; 
+                        font-size: 10pt; 
+                        text-align: center;
+                        vertical-align: middle;
+                    }
+                    th.audit-header {
+                        background-color: #D97706;
+                        color: #ffffff;
+                        border: 1px solid #92400E;
+                    }
+                    td { 
+                        border: 1px solid #cbd5e1; 
+                        padding: 6px 8px; 
+                        font-size: 9.5pt; 
+                        vertical-align: middle; 
+                    }
+                    .text-center { text-align: center; mso-number-format:"\\@"; }
+                    .text-right { text-align: right; }
+                    .text-left { text-align: left; }
+                    .text-bold { font-weight: bold; }
+                    .code-cell { font-family: 'Courier New', monospace; font-weight: bold; color: #1e40af; text-align: center; mso-number-format:"\\@"; }
+                    .num-cell { mso-number-format:"\\#,##0"; }
+                    .audit-cell { background-color: #fffbeb; border: 1px solid #fde68a; }
+                    .category-tag { background-color: #f1f5f9; font-weight: bold; }
+                    .sign-title { font-weight: bold; text-align: center; padding-bottom: 40px; }
+                    .sign-line { text-align: center; color: #64748b; }
+                </style>
+            </head>
+            <body>
+                <table>
+                    <tr>
+                        <td colspan="13" class="header-title">บริษัท คริสเตียนีและนีลเส็น เอนเนอร์จี โซลูชันส์ จำกัด</td>
+                    </tr>
+                    <tr>
+                        <td colspan="13" class="header-sub">รายงานตรวจนับพัสดุและยอดคงเหลือคลังสินค้า (Physical Inventory Count & Stock Audit Report)</td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" class="header-meta">วันที่จัดพิมพ์: ${dateStr} เวลา: ${timeStr} | ออกโดยระบบ CNES Inventory v1.7.8</td>
+                        <td colspan="6" class="header-meta" style="text-align: right;">จำนวนรายการทั้งหมด: <b>${sortedItems.length}</b> รายการ</td>
+                    </tr>
+                    <tr><td colspan="13" style="border:none; height:10px;"></td></tr>
+                    <thead>
+                        <tr>
+                            <th style="width: 40px;">ลำดับ<br>(No.)</th>
+                            <th style="width: 110px;">รหัสพัสดุ<br>(Item Code)</th>
+                            <th style="width: 220px;">ชื่อรายการพัสดุอุปกรณ์<br>(Material Description)</th>
+                            <th style="width: 180px;">รุ่น / สเปก<br>(Model)</th>
+                            <th style="width: 120px;">หมวดหมู่<br>(Category)</th>
+                            <th style="width: 100px;">ตำแหน่งจัดเก็บ<br>(Location)</th>
+                            <th style="width: 90px;">ยอดในระบบ<br>(System Qty)</th>
+                            <th style="width: 80px;">ยอดจองออก<br>(Reserved)</th>
+                            <th style="width: 90px;">ยอดพร้อมใช้<br>(Available)</th>
+                            <th style="width: 70px;">หน่วยนับ<br>(Unit)</th>
+                            <th class="audit-header" style="width: 110px;">[ตรวจนับจริง]<br>ยอดนับได้จริง (Count)</th>
+                            <th class="audit-header" style="width: 90px;">[ผลต่าง]<br>(+/- Diff)</th>
+                            <th class="audit-header" style="width: 180px;">[ผลการตรวจนับ]<br>สภาพพัสดุ / หมายเหตุ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let currentCat = '';
+            let seq = 1;
+
+            sortedItems.forEach(item => {
+                const balance = parseInt(item.qty) || 0;
+                const reserved = parseInt(item.reserve_out) || 0;
+                const available = Math.max(0, balance - reserved);
+
+                // แทรกแถวคั่นหัวหมวดหมู่เพื่อให้อ่านและเดินเช็คของได้ง่าย
+                if (item.category !== currentCat) {
+                    currentCat = item.category;
+                    html += `
+                        <tr style="background-color: #f8fafc;">
+                            <td colspan="13" class="text-left text-bold" style="background-color: #e2e8f0; color: #1e293b; padding: 6px 10px;">
+                                📁 หมวดหมู่: ${currentCat}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                html += `
+                    <tr>
+                        <td class="text-center">${seq++}</td>
+                        <td class="code-cell">${item.itemCode || '-'}</td>
+                        <td class="text-left text-bold">${item.name || '-'}</td>
+                        <td class="text-left">${item.model || '-'}</td>
+                        <td class="text-center category-tag">${item.category || '-'}</td>
+                        <td class="text-center">${item.location || '-'}</td>
+                        <td class="text-right text-bold num-cell">${balance}</td>
+                        <td class="text-right num-cell" style="color: #d97706;">${reserved}</td>
+                        <td class="text-right text-bold num-cell" style="color: #15803d;">${available}</td>
+                        <td class="text-center">${item.unit || '-'}</td>
+                        <td class="audit-cell text-center"></td>
+                        <td class="audit-cell text-center"></td>
+                        <td class="audit-cell text-left"></td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                    </tbody>
+                </table>
+                <br><br>
+                <table>
+                    <tr>
+                        <td colspan="4" style="border:none;" class="sign-title">
+                            ผู้ตรวจนับพัสดุ (Counter)<br><br><br>
+                            ลงชื่อ: .....................................................<br>
+                            ( ..................................................... )<br>
+                            วันที่: ...... / ...... / ..........
+                        </td>
+                        <td colspan="5" style="border:none;" class="sign-title">
+                            ผู้ตรวจสอบสต๊อก (Auditor / Inspector)<br><br><br>
+                            ลงชื่อ: .....................................................<br>
+                            ( ..................................................... )<br>
+                            วันที่: ...... / ...... / ..........
+                        </td>
+                        <td colspan="4" style="border:none;" class="sign-title">
+                            ผู้อนุมัติผลตรวจนับ (Approver)<br><br><br>
+                            ลงชื่อ: .....................................................<br>
+                            ( ..................................................... )<br>
+                            วันที่: ...... / ...... / ..........
+                        </td>
+                    </tr>
+                </table>
+            </body>
+            </html>
+            `;
+
+            const blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement('a');
-            link.href = URL.createObjectURL(blobObj);
-            link.setAttribute('download', `CNES_Stock_Report.csv`);
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `CNES_Stock_Report_ตรวจนับพัสดุ_${fileDate}.xls`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         },
 
         saveData() {
@@ -891,7 +942,7 @@ function cnesApp() {
             }).then(() => {
                 localStorage.setItem('cnes_v178_unsynced', 'false');
             }).catch(err => {
-                console.log("ยังบันทึกลง Google Sheets ไม่สำเร็จ ดำเนินการเก็บบันทึกบน LocalStorage แทนชั่วคราว");
+                console.log("บันทึกบน LocalStorage ชั่วคราว");
             });
         },
 

@@ -126,8 +126,9 @@
                                 </div>
                             </div>
                         </div>
-                        <button @click="downloadCSV()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors">
-                            📥 ส่งออกไฟล์สต๊อก (CSV)
+                        <!-- [ปรับปรุงข้อ 2] ปุ่มส่งออกไฟล์รายงานตรวจนับสต๊อก Excel -->
+                        <button @click="downloadCSV()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors" title="ดาวน์โหลดใบรายงานตรวจนับสต๊อกพัสดุในรูปแบบ Excel">
+                            📥 ส่งออกรายงานตรวจนับสต๊อก (Excel)
                         </button>
                     </div>
 
@@ -365,7 +366,6 @@
                                                             </label>
                                                         </template>
 
-                                                        <!-- [เปิดดูตัวไฟล์ PDF และปุ่มลบเพื่อแนบใหม่] -->
                                                         <template x-if="hasPdf(log)">
                                                             <div class="flex flex-col items-end">
                                                                 <div class="flex items-center gap-1">
@@ -499,21 +499,30 @@
                         </div>
                     </div>
 
+                    <!-- [ปรับปรุงข้อ 1] แบบฟอร์มลงทะเบียนพัสดุ: สามารถพิมพ์ระบุรหัสวัสดุเอง หรือกดปุ่มรหัสอัตโนมัติ -->
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-                        <h3 class="font-bold text-slate-800 text-sm">➕ ลงทะเบียนบันทึกรหัสวัสดุใหม่</h3>
+                        <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                            <h3 class="font-bold text-slate-800 text-sm">➕ ลงทะเบียนบันทึกรหัสวัสดุใหม่</h3>
+                            <span class="text-[11px] text-slate-400">กำหนดรหัสเอง หรือเลือกหมวดเพื่อใช้อัตโนมัติ</span>
+                        </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 mb-1">กลุ่มสินค้าหลัก *</label>
-                                <select x-model="newItem.category" @change="generateItemCode()" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white outline-none">
-                                    <option value="">เลือกเพื่อคำนวณโค้ด</option>
+                                <select x-model="newItem.category" @change="generateItemCode(false)" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white outline-none">
+                                    <option value="">-- เลือกกลุ่มสินค้า --</option>
                                     <template x-for="cat in categories">
                                         <option :value="cat" x-text="cat"></option>
                                     </template>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-500 mb-1">รหัสสินค้าอัตโนมัติ (Item Code)</label>
-                                <input type="text" x-model="newItem.itemCode" placeholder="รหัสวัสดุ" class="w-full border border-slate-300 rounded-lg p-2 text-xs uppercase bg-white">
+                                <div class="flex justify-between items-center mb-1">
+                                    <label class="block text-xs font-bold text-slate-500">รหัสวัสดุ (Item Code) *</label>
+                                    <button type="button" @click="generateItemCode(true)" class="text-[10px] text-blue-600 hover:underline font-bold" title="คลิกเพื่อสุ่ม/สร้างรหัสอัตโนมัติตามหมวดหมู่">
+                                        🔄 รหัสอัตโนมัติ
+                                    </button>
+                                </div>
+                                <input type="text" x-model="newItem.itemCode" placeholder="ระบุรหัสเอง เช่น PV-001" class="w-full border border-slate-300 rounded-lg p-2 text-xs uppercase bg-white font-mono font-bold text-blue-600">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-500 mb-1">ชื่อเรียกอุปกรณ์ที่เก็บ *</label>
@@ -547,16 +556,20 @@
                         </div>
                     </div>
 
+                    <!-- [ปรับปรุงข้อ 1] ตารางจัดการสต๊อก: สามารถแก้ไข/กำหนดรหัสพัสดุเดิมได้ทันที -->
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-col sm:flex-row gap-3">
-                                <h3 class="font-bold text-slate-800 text-sm">📋 บัญชีและประเภทพัสดุพ่วงสต๊อก</h3>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-sm">📋 บัญชีและประเภทพัสดุพ่วงสต๊อก</h3>
+                                    <span class="text-[10px] text-slate-500">สามารถคลิกแก้ไขรหัสพัสดุในช่องตารางเพื่อเปลี่ยนโค้ดได้โดยตรง</span>
+                                </div>
                                 <button @click="resetDropdownDefaults()" class="text-xs text-red-500 hover:text-red-700 underline font-bold">กู้คืนตัวเลือกหมวดหมู่เริ่มต้น</button>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead>
                                     <tr class="bg-slate-900 text-white font-bold uppercase">
-                                        <th class="px-6 py-3">รหัสพัสดุ</th>
+                                        <th class="px-6 py-3">รหัสพัสดุ (คลิกแก้ไขได้)</th>
                                         <th class="px-6 py-3">ชื่อรายละเอียดและรุ่น</th>
                                         <th class="px-6 py-3">ตำแหน่งที่เก็บ</th>
                                         <th class="px-6 py-3">คงเหลือคลังจริง</th>
@@ -568,7 +581,14 @@
                                 <tbody class="divide-y divide-slate-100">
                                     <template x-for="item in getSortedInventory()" :key="item.id">
                                         <tr class="hover:bg-slate-50">
-                                            <td class="px-6 py-4 font-mono font-bold text-blue-600" x-text="item.itemCode"></td>
+                                            <!-- ช่องแก้ไขรหัสพัสดุโดยตรงในตาราง -->
+                                            <td class="px-6 py-3">
+                                                <input type="text" 
+                                                       x-model="item.itemCode" 
+                                                       @change="updateItemCode(item)" 
+                                                       class="w-32 font-mono font-bold text-blue-600 bg-white border border-slate-200 hover:border-blue-400 focus:border-blue-600 rounded px-2 py-1 text-xs uppercase outline-none shadow-sm transition-colors" 
+                                                       title="คลิกเพื่อแก้ไขหรือกำหนดรหัสพัสดุนี้ใหม่">
+                                            </td>
                                             <td class="px-6 py-4">
                                                 <p class="font-bold text-slate-800" x-text="item.name"></p>
                                                 <span class="text-[10px] text-slate-400" x-text="'Model: ' + item.model"></span>
