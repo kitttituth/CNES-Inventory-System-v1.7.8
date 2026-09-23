@@ -11,17 +11,17 @@ function cnesApp() {
         sidebarOpen: false, 
         userModalOpen: false, 
         
+        // --- โครงสร้างผู้ลงนามแยกตาม Project / O&M (ตั้งค่าเริ่มต้นตามรูป Image 2) ---
+        signatories: {
+            project: { inspector: 'นายดิเรก นวลสิงห์', approver: 'นายปองศักดิ์ สุทธปรีดา' },
+            om: { inspector: 'นายกิตติธัช ทองวัชรไพบูลย์', approver: 'นายปองศักดิ์ สุทธปรีดา' }
+        },
+
         // --- ฐานข้อมูลหลัก ---
         categories: [],
         units: [],
         inventory: [],
         logs: [],
-        
-        // --- โครงสร้างผู้ลงนามแยกตาม Project / O&M ---
-        signatories: {
-            project: { inspector: '', approver: '' },
-            om: { inspector: '', approver: '' }
-        },
 
         // --- ข้อมูลฟอร์มและการตั้งค่า ---
         form: { user: '', site: '', actionDate: '', txnType: 'ACTUAL', purpose: 'Project', items: [] },
@@ -39,7 +39,9 @@ function cnesApp() {
             
             try { 
                 const savedSig = JSON.parse(localStorage.getItem('cnes_v178_signatories'));
-                if (savedSig) this.signatories = savedSig;
+                if (savedSig && (savedSig.project?.inspector || savedSig.om?.inspector)) {
+                    this.signatories = savedSig;
+                }
             } catch(e) {}
 
             await this.fetchServerData();
@@ -68,6 +70,7 @@ function cnesApp() {
             }
         },
 
+        // ล็อกค่า purpose ไม่ให้เด้งกลับเป็น Project
         async fetchServerData() {
             if (localStorage.getItem('cnes_v178_unsynced') === 'true') {
                 this.syncLocalToServer();
@@ -85,15 +88,36 @@ function cnesApp() {
                         this.categories = serverData.categories || [];
                         this.units = serverData.units || [];
 
-                        if (serverData.logs) {
-                            this.logs = serverData.logs;
+                        // แมป logs และรักษาสถานะ O&M / Project ไม่ให้ถูกเซิร์ฟเวอร์เขียนทับเด็ดขาด
+                        const purposeMap = JSON.parse(localStorage.getItem('cnes_v178_purpose_map') || '{}');
+                        if (serverData.logs && Array.isArray(serverData.logs)) {
+                            this.logs = serverData.logs.map(sLog => {
+                                const current = this.logs.find(l => String(l.id) === String(sLog.id));
+                                let p = sLog.purpose;
+                                
+                                if (!p || p === 'undefined' || p === 'Project') {
+                                    if (String(sLog.id).includes('-OM-') || String(sLog.id).includes('/OM-') || String(sLog.id).includes('/OM/')) {
+                                        p = 'O&M';
+                                    } else if (purposeMap[sLog.id]) {
+                                        p = purposeMap[sLog.id];
+                                    } else if (current && current.purpose) {
+                                        p = current.purpose;
+                                    }
+                                }
+                                
+                                sLog.purpose = (p && (p.toUpperCase().includes('O&M') || p.toUpperCase().includes('OM'))) ? 'O&M' : (p || 'Project');
+                                return sLog;
+                            });
                         }
 
-                        if (serverData.signatories) {
+                        // ถนอมรายชื่อผู้ลงนาม ไม่ให้ค่าว่างจากเซิร์ฟเวอร์มาทับ
+                        if (serverData.signatories && 
+                            (serverData.signatories.project?.inspector || serverData.signatories.om?.inspector ||
+                             serverData.signatories.project?.approver || serverData.signatories.om?.approver)) {
                             this.signatories = serverData.signatories;
+                            localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
                         }
 
-                        localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
                         localStorage.setItem('cnes_v178_inv', JSON.stringify(this.inventory));
                         localStorage.setItem('cnes_v178_logs', JSON.stringify(this.logs));
                         localStorage.setItem('cnes_v178_cats', JSON.stringify(this.categories));
@@ -223,30 +247,48 @@ function cnesApp() {
         autoFillFromNameText(row) { this.smartAutoFill(row, row.name); },
         autoFillFromModelText(row) { this.smartAutoFill(row, row.model); },
 
+        // ฟังก์ชันคำนวณวัตถุประสงค์ที่แน่นอน ไม่เด้งกลับ
+        getLogPurpose(log) {
+            if (!log) return 'Project';
+            const p = String(log.purpose || '').trim().toUpperCase();
+            const id = String(log.id || '').toUpperCase();
+            if (p.includes('O&M') || p.includes('OM') || p.includes('O & M') || id.includes('-OM-') || id.includes('/OM-') || id.includes('/OM/')) {
+                return 'O&M';
+            }
+            return 'Project';
+        },
+
+        // ดึงชื่อผู้ตรวจสอบตาม Project หรือ O&M เสมอ ห้ามผิดพลาด
         getSignatoryInspector(log) {
             if (!log) return '';
-            const p = (log.purpose || '').trim().toUpperCase();
-            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
+            const isOM = this.getLogPurpose(log) === 'O&M';
             const pKey = isOM ? 'om' : 'project';
 
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].inspector && this.signatories[pKey].inspector.trim()) {
                 return this.signatories[pKey].inspector.trim();
             }
-            return log.inspector ? log.inspector.trim() : ''; 
+            if (log.inspector && log.inspector.trim()) {
+                return log.inspector.trim();
+            }
+            return isOM ? 'นายกิตติธัช ทองวัชรไพบูลย์' : 'นายดิเรก นวลสิงห์';
         },
 
+        // ดึงชื่อผู้อนุมัติตาม Project หรือ O&M เสมอ ห้ามผิดพลาด
         getSignatoryApprover(log) {
             if (!log) return '';
-            const p = (log.purpose || '').trim().toUpperCase();
-            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
+            const isOM = this.getLogPurpose(log) === 'O&M';
             const pKey = isOM ? 'om' : 'project';
 
             if (this.signatories && this.signatories[pKey] && this.signatories[pKey].approver && this.signatories[pKey].approver.trim()) {
                 return this.signatories[pKey].approver.trim();
             }
-            return log.approver ? log.approver.trim() : ''; 
+            if (log.approver && log.approver.trim()) {
+                return log.approver.trim();
+            }
+            return 'นายปองศักดิ์ สุทธปรีดา';
         },
 
+        // บันทึกธุรกรรมและล็อกค่า O&M ใน Ref ID เพื่อไม่ให้เด้งกลับเป็น Project
         submitTransaction() {
             const invalid = this.form.items.some(i => {
                 const codeFilled = i.itemCode && i.itemCode.trim();
@@ -271,21 +313,25 @@ function cnesApp() {
             const siteClean = (this.form.site || 'SITE').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
             const siteCode = siteClean.substring(0, 6) || 'GEN';
             const seq = String(this.logs.length + 1).padStart(3, '0');
-            const customId = `${yyyy}/${mm}/${dd}/${siteCode}-${seq}`;
 
-            const p = (this.form.purpose || '').trim().toUpperCase();
-            const isOM = p.includes('O&M') || p.includes('OM') || p.includes('O & M');
+            const p = String(this.form.purpose || 'Project').trim();
+            const isOM = p.toUpperCase().includes('O&M') || p.toUpperCase().includes('OM') || p.toUpperCase().includes('O & M');
             const pKey = isOM ? 'om' : 'project';
-            const mappedInspector = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].inspector : '';
-            const mappedApprover = (this.signatories && this.signatories[pKey]) ? this.signatories[pKey].approver : '';
+            const pTag = isOM ? 'OM' : 'PRJ';
 
-            this.logs.unshift({
+            // ล็อกแท็ก OM หรือ PRJ ไว้ใน Ref ID เพื่อการันตีว่าค่าจะไม่เด้งกลับ
+            const customId = `${yyyy}/${mm}/${dd}/${pTag}-${siteCode}-${seq}`;
+
+            const mappedInspector = (this.signatories && this.signatories[pKey] && this.signatories[pKey].inspector) ? this.signatories[pKey].inspector.trim() : (isOM ? 'นายกิตติธัช ทองวัชรไพบูลย์' : 'นายดิเรก นวลสิงห์');
+            const mappedApprover = (this.signatories && this.signatories[pKey] && this.signatories[pKey].approver) ? this.signatories[pKey].approver.trim() : 'นายปองศักดิ์ สุทธปรีดา';
+
+            const newLog = {
                 id: customId,
                 timestamp: new Date().toLocaleString('th-TH'),
                 actionDate: this.form.actionDate, 
                 type: this.page.toUpperCase(),
                 txnType: this.form.txnType,
-                purpose: this.form.purpose || 'Project',
+                purpose: isOM ? 'O&M' : 'Project',
                 inspector: mappedInspector,
                 approver: mappedApprover,
                 status: 'PENDING',
@@ -294,10 +340,17 @@ function cnesApp() {
                 items: JSON.parse(JSON.stringify(this.form.items)),
                 pdfData: null,
                 pdfName: ''
-            });
+            };
+
+            this.logs.unshift(newLog);
+
+            // บันทึกแผนผังล็อกค่า purpose ลงในเครื่องถาวร
+            const purposeMap = JSON.parse(localStorage.getItem('cnes_v178_purpose_map') || '{}');
+            purposeMap[customId] = isOM ? 'O&M' : 'Project';
+            localStorage.setItem('cnes_v178_purpose_map', JSON.stringify(purposeMap));
 
             this.saveData();
-            alert(`บันทึกสำเร็จ! รหัสอ้างอิง: ${customId} กรุณารอ Admin อนุมัติในหน้า Logs`);
+            alert(`บันทึกสำเร็จ! รหัสอ้างอิง: ${customId} [${newLog.purpose}] กรุณารอ Admin อนุมัติในหน้า Logs`);
             this.resetForm();
             this.page = 'logs';
         },
@@ -458,17 +511,14 @@ function cnesApp() {
             return (d.startsWith('http') || d.startsWith('data:') || legacyLink.startsWith('http') || n.length > 0 || d.length > 0);
         },
 
-        // 👁️ [เปิดดูไฟล์: รองรับ Direct URL, Base64 และค้นหาเปิดไฟล์ Microsoft Teams / SharePoint อัตโนมัติทุกอุปกรณ์]
         viewPDF(pdfData, pdfName) {
             let targetData = String(pdfData || '').trim();
             const fileName = String(pdfName || '').trim();
 
-            // 1. ถ้า targetData ไม่ใช่ URL แต่ fileName เป็น URL ให้สลับมาใช้ fileName
             if (!targetData.startsWith('http') && fileName.startsWith('http')) {
                 targetData = fileName;
             }
 
-            // 2. ถ้าเป็น Direct URL (SharePoint, Microsoft Teams, Google Drive) -> เปิดดูทันที
             if (targetData.startsWith('http://') || targetData.startsWith('https://') || targetData.startsWith('msteams:')) {
                 let directUrl = targetData;
                 if (targetData.includes('drive.google.com')) {
@@ -482,7 +532,6 @@ function cnesApp() {
                 return;
             }
 
-            // 3. ถ้าเป็น Base64
             if (targetData.includes('base64,') || targetData.startsWith('data:application/pdf')) {
                 try {
                     const base64Parts = targetData.split('base64,');
@@ -510,17 +559,14 @@ function cnesApp() {
                 }
             }
 
-            // 4. 🔥 [จุดแก้ปัญหาตรงนี้!] กรณีมีชื่อไฟล์ เช่น [PO]_INV-001_1848_001.pdf หรือ 1541_001
-            // ระบบจะสกัดรหัสเอกสาร แล้วเปิดไฟล์ใน Microsoft Teams / SharePoint ขององค์กรทันทีทุกอุปกรณ์
             const fileIdentifier = fileName || targetData;
             if (fileIdentifier && fileIdentifier !== '' && fileIdentifier !== 'null' && fileIdentifier !== 'undefined') {
-                // สกัดชื่อไฟล์ เช่น [PO]_INV-001_1848_001.pdf -> 1848_001
                 let cleanName = fileIdentifier.replace(/^\[PO\]_/, '').replace(/\.pdf$/i, '').trim();
                 let searchKeyword = cleanName;
                 
                 const parts = cleanName.split('_');
                 if (parts.length >= 3) {
-                    searchKeyword = parts.slice(parts.length - 2).join('_'); // เช่น 1848_001
+                    searchKeyword = parts.slice(parts.length - 2).join('_');
                 }
 
                 const teamsSearchUrl = `https://cnesthai.sharepoint.com/sites/OperationTeam237/_layouts/15/search.aspx?q=${encodeURIComponent(searchKeyword || cleanName)}`;
@@ -532,7 +578,6 @@ function cnesApp() {
             alert('ไม่พบลิงก์ไฟล์เอกสาร PDF หรือกำลังประมวลผล กรุณาลองใหม่อีกครั้ง');
         },
 
-        // 📥 [อัปโหลดแนบใบเบิก/รับสินค้า]
         uploadPDF(event, logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -584,7 +629,6 @@ function cnesApp() {
             reader.readAsDataURL(file);
         },
 
-        // 🗑️ [ลบไฟล์ PDF ใบเบิก/รับสินค้า]
         removePDF(logId) {
             const log = this.logs.find(l => l.id == logId);
             if (!log) return;
@@ -596,7 +640,6 @@ function cnesApp() {
             }
         },
 
-        // 📥 [อัปโหลดแนบเอกสาร PO / Delivery]
         uploadMaterialPDF(event, itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -647,7 +690,6 @@ function cnesApp() {
             reader.readAsDataURL(file);
         },
 
-        // 🗑️ [ลบเอกสาร PO / Delivery]
         removeMaterialPDF(itemId) {
             const item = this.inventory.find(i => i.id == itemId);
             if (!item) return;
@@ -669,7 +711,6 @@ function cnesApp() {
             }, 500);
         },
 
-        // สร้างรหัสอัตโนมัติ (ไม่เขียนทับหากมีรหัสที่พิมพ์เองไว้แล้ว)
         generateItemCode(force = false) {
             if (!this.newItem.category) return;
             if (this.newItem.itemCode && this.newItem.itemCode.trim() !== '' && !force) return;
@@ -678,7 +719,6 @@ function cnesApp() {
             this.newItem.itemCode = `${prefix}-${String(count).padStart(3, '0')}`;
         },
 
-        // แก้ไขและกำหนดรหัสพัสดุเดิมในตารางได้ทันที
         updateItemCode(item) {
             if (!item || !item.itemCode) return;
             item.itemCode = item.itemCode.trim().toUpperCase();
@@ -750,6 +790,7 @@ function cnesApp() {
         },
 
         saveSignatories() {
+            localStorage.setItem('cnes_v178_signatories', JSON.stringify(this.signatories));
             this.saveData();
             alert('บันทึกและซิงก์ข้อมูลรายชื่อผู้ลงนามเรียบร้อยแล้ว ทุกอุปกรณ์จะเห็นข้อมูลชุดเดียวกัน');
         },
@@ -763,7 +804,6 @@ function cnesApp() {
             }
         },
 
-        // ส่งออกเอกสาร Excel (CNES_Stock_Report.xls) สำหรับตรวจนับสต๊อก
         downloadCSV() {
             if (this.inventory.length === 0) return alert('ไม่มีข้อมูลสำหรับส่งออก!');
 

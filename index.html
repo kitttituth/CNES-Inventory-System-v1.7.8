@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CNES Inventory System v1.7.8</title>
-    <!-- เรียกใช้งาน CSS และ Alpine.js สำหรับควบคุม UI ของแอปพลิเคชันอย่างปลอดภัย -->
+    <!-- เรียกใช้งาน Tailwind CSS และ Alpine.js -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="script.js"></script>
@@ -74,7 +74,6 @@
                 </nav>
             </div>
 
-            <!-- ส่วนล่างสุดของแถบ Sidebar -->
             <div class="p-4 border-t border-slate-900 space-y-3">
                 <button @click="page = 'logs'; sidebarOpen = false" :class="page === 'logs' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-900'" class="w-full flex items-center justify-between px-4 py-3 rounded-lg text-left text-sm transition-colors">
                     <span class="flex items-center space-x-3">
@@ -126,7 +125,6 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- [ปรับปรุงข้อ 2] ปุ่มส่งออกไฟล์รายงานตรวจนับสต๊อก Excel -->
                         <button @click="downloadCSV()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors" title="ดาวน์โหลดใบรายงานตรวจนับสต๊อกพัสดุในรูปแบบ Excel">
                             📥 ส่งออกรายงานตรวจนับสต๊อก (Excel)
                         </button>
@@ -327,7 +325,8 @@
                                             </td>
                                             <td class="px-6 py-4">
                                                 <span :class="log.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'" class="px-2.5 py-1 text-[10px] font-bold rounded-full border block w-fit" x-text="log.type + ' (' + log.txnType + ')'"></span>
-                                                <span class="text-[10px] font-bold text-slate-500 mt-1 block" x-text="'📌 ' + (log.purpose || 'Project')"></span>
+                                                <!-- วัตถุประสงค์ไม่เด้งกลับ -->
+                                                <span class="text-[10px] font-bold text-slate-500 mt-1 block" x-text="'📌 ' + getLogPurpose(log)"></span>
                                             </td>
                                             <td class="px-6 py-4 text-slate-600 text-xs">
                                                 <p class="font-bold text-slate-800" x-text="log.site || '-'"></p>
@@ -352,53 +351,79 @@
                                                     'bg-slate-100 text-slate-600 border-slate-300': log.status === 'EXPIRED'
                                                 }" class="px-2.5 py-1 text-[10px] font-bold rounded-full border" x-text="log.status"></span>
                                             </td>
-                                            <td class="px-6 py-4 text-right">
-                                                <div class="flex flex-col gap-1.5">
-                                                    <div class="flex flex-wrap gap-1 justify-end items-center">
-                                                        <button @click="printLogData(log)" class="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold px-2.5 py-1 rounded">
-                                                            🖨️ สั่งพิมพ์เอกสาร
-                                                        </button>
-                                                        
-                                                        <template x-if="!hasPdf(log)">
-                                                            <label class="bg-slate-600 hover:bg-slate-700 text-white text-[10px] font-bold px-2.5 py-1 rounded cursor-pointer inline-block" title="แนบไฟล์เอกสาร PDF">
-                                                                📎 แนบ PDF
-                                                                <input type="file" @change="uploadPDF($event, log.id)" class="hidden" accept="application/pdf">
-                                                            </label>
-                                                        </template>
 
-                                                        <template x-if="hasPdf(log)">
-                                                            <div class="flex flex-col items-end">
-                                                                <div class="flex items-center gap-1">
-                                                                    <button @click="viewPDF(log.pdfData, log.pdfName)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded inline-flex items-center gap-1 cursor-pointer" title="คลิกเพื่อเปิดดูไฟล์ PDF เอกสารฉบับนี้ทันที">
-                                                                        👁️ ดู / 📥 โหลด PDF
-                                                                    </button>
-                                                                    <button @click="removePDF(log.id)" class="bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-bold px-2 py-1 rounded cursor-pointer" title="ลบไฟล์ PDF เพื่ออัปโหลดใหม่">
-                                                                        🗑️ ลบไฟล์
-                                                                    </button>
-                                                                </div>
-                                                                <span class="text-[9px] text-slate-400 font-mono mt-0.5 truncate max-w-[150px]" x-text="log.pdfName" :title="log.pdfName"></span>
-                                                            </div>
-                                                        </template>
-                                                    </div>
-                                                    <div class="flex flex-wrap gap-1 justify-end">
-                                                        <template x-if="userRole === 'admin' && log.status === 'PENDING'">
-                                                            <button @click="approveLog(log.id)" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded">
-                                                                ✅ อนุมัติปรับยอด
-                                                            </button>
-                                                        </template>
-                                                        <template x-if="userRole === 'admin' && log.txnType === 'RESERVE' && log.status === 'APPROVED'">
-                                                            <button @click="confirmActual(log.id)" class="bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold px-2.5 py-1 rounded">
-                                                                📦 อัปเดตจ่ายจริง
-                                                            </button>
-                                                        </template>
-                                                        <template x-if="userRole === 'admin' && log.status !== 'CANCELLED' && log.status !== 'EXPIRED'">
-                                                            <button @click="cancelLog(log.id)" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded">
-                                                                ❌ ยกเลิก
-                                                            </button>
-                                                        </template>
-                                                    </div>
+                                            <!-- [ข้อ 1] ปุ่มดำเนินการ 2 แถว แถวละ 2 ปุ่มเป๊ะ (Grid 2x2) -->
+                                            <td class="px-6 py-4 text-right">
+                                                <div class="grid grid-cols-2 gap-1.5 w-60 ml-auto">
+                                                    
+                                                    <!-- แถวที่ 1 - ปุ่ม 1: สั่งพิมพ์เอกสาร -->
+                                                    <button @click="printLogData(log)" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="พิมพ์สลิปเอกสาร">
+                                                        🖨️ สั่งพิมพ์เอกสาร
+                                                    </button>
+                                                    
+                                                    <!-- แถวที่ 1 - ปุ่ม 2: ดู PDF (ถ้าไม่มีทำเป็นสีเทา) -->
+                                                    <template x-if="hasPdf(log)">
+                                                        <button @click="viewPDF(log.pdfData, log.pdfName)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 truncate transition-colors" title="เปิดดูไฟล์ PDF">
+                                                            👁️ ดู / โหลด PDF
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="!hasPdf(log)">
+                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="ยังไม่มีไฟล์ PDF แนบ">
+                                                            👁️ ไม่มี PDF
+                                                        </button>
+                                                    </template>
+
+                                                    <!-- แถวที่ 2 - ปุ่ม 3: แนบ PDF (ถ้ามีแล้วล็อคเป็นสีเทาห้ามอัพซ้ำ) -->
+                                                    <template x-if="!hasPdf(log)">
+                                                        <label class="w-full bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-colors" title="แนบไฟล์เอกสาร PDF">
+                                                            📎 แนบ PDF
+                                                            <input type="file" @change="uploadPDF($event, log.id)" class="hidden" accept="application/pdf">
+                                                        </label>
+                                                    </template>
+                                                    <template x-if="hasPdf(log)">
+                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="มีไฟล์แล้ว ไม่สามารถอัปโหลดซ้ำได้">
+                                                            📎 แนบแล้ว (ห้ามซ้ำ)
+                                                        </button>
+                                                    </template>
+
+                                                    <!-- แถวที่ 2 - ปุ่ม 4: อนุมัติ / สถานะ (สีเทาเมื่อกดไม่ได้) -->
+                                                    <template x-if="userRole === 'admin' && log.status === 'PENDING'">
+                                                        <button @click="approveLog(log.id)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="อนุมัติรายการและปรับปรุงสต๊อก">
+                                                            ✅ อนุมัติปรับยอด
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="userRole === 'admin' && log.txnType === 'RESERVE' && log.status === 'APPROVED'">
+                                                        <button @click="confirmActual(log.id)" class="w-full bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="ปรับยอดจากการจองเป็นการเบิกจริง">
+                                                            📦 อัปเดตจ่ายจริง
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="userRole === 'admin' && log.txnType === 'ACTUAL' && log.status === 'APPROVED'">
+                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้อนุมัติเรียบร้อยแล้ว ไม่สามารถกดซ้ำได้">
+                                                            ✅ อนุมัติแล้ว
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="userRole === 'admin' && log.status === 'CANCELLED'">
+                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้ถูกยกเลิกไปแล้ว">
+                                                            ❌ ยกเลิกแล้ว
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="userRole === 'admin' && log.status === 'EXPIRED'">
+                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้หมดอายุ">
+                                                            ⏳ หมดอายุ
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="userRole !== 'admin'">
+                                                        <button disabled class="w-full bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="สิทธิ์เฉพาะ Admin">
+                                                            🔒 เฉพาะ Admin
+                                                        </button>
+                                                    </template>
+
                                                 </div>
+                                                <template x-if="hasPdf(log)">
+                                                    <span class="text-[9px] text-slate-400 font-mono mt-1 block truncate max-w-[240px] text-right" x-text="log.pdfName" :title="log.pdfName"></span>
+                                                </template>
                                             </td>
+
                                         </tr>
                                     </template>
                                     <template x-if="logs.length === 0">
@@ -499,7 +524,7 @@
                         </div>
                     </div>
 
-                    <!-- [ปรับปรุงข้อ 1] แบบฟอร์มลงทะเบียนพัสดุ: สามารถพิมพ์ระบุรหัสวัสดุเอง หรือกดปุ่มรหัสอัตโนมัติ -->
+                    <!-- แบบฟอร์มลงทะเบียนพัสดุ: สามารถพิมพ์ระบุรหัสวัสดุเอง หรือกดปุ่มรหัสอัตโนมัติ -->
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                             <h3 class="font-bold text-slate-800 text-sm">➕ ลงทะเบียนบันทึกรหัสวัสดุใหม่</h3>
@@ -556,7 +581,7 @@
                         </div>
                     </div>
 
-                    <!-- [ปรับปรุงข้อ 1] ตารางจัดการสต๊อก: สามารถแก้ไข/กำหนดรหัสพัสดุเดิมได้ทันที -->
+                    <!-- ตารางจัดการสต๊อก: สามารถแก้ไข/กำหนดรหัสพัสดุเดิมได้ทันที -->
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-col sm:flex-row gap-3">
                                 <div>
@@ -581,7 +606,6 @@
                                 <tbody class="divide-y divide-slate-100">
                                     <template x-for="item in getSortedInventory()" :key="item.id">
                                         <tr class="hover:bg-slate-50">
-                                            <!-- ช่องแก้ไขรหัสพัสดุโดยตรงในตาราง -->
                                             <td class="px-6 py-3">
                                                 <input type="text" 
                                                        x-model="item.itemCode" 
@@ -689,97 +713,97 @@
         </div>
     </div>
 
-    <!-- [4] แผ่นสลิปพิมพ์เอกสารประวัติ (Print Sheet Template) -->
+    <!-- [4] แผ่นสลิปพิมพ์เอกสารประวัติ (รูปแบบเดิมตามรูปตัวอย่างที่ 2 เป๊ะ ไม่มีแถบน้ำเงิน ไม่ตกไปหน้าที่ 2) -->
     <div x-show="printData" class="fixed inset-0 bg-white z-[120] p-8 flex flex-col justify-between" id="printable-area">
         <template x-if="printData">
             <div class="flex flex-col h-full justify-between">
-                <div class="w-full h-1.5 bg-[#20336B] rounded-full mb-3"></div>
 
-                <div class="space-y-6 flex-1">
-                    <div class="flex justify-between items-center border-b-2 border-[#20336B] pb-4">
-                        <div class="flex items-center space-x-4">
-                            <img src="logo.png" alt="CNES Logo" class="h-14 w-auto object-contain">
+                <!-- ส่วนหัวและตาราง -->
+                <div class="space-y-4">
+                    <!-- หัวจดหมายบริษัทและ Ref ID -->
+                    <div class="flex justify-between items-start border-b-2 border-[#20336B] pb-3">
+                        <div class="flex items-center space-x-3">
+                            <img src="logo.png" alt="CNES Logo" class="h-12 w-auto object-contain">
                             <div>
-                                <h1 class="text-2xl font-black text-slate-900 leading-tight">บริษัท คริสเตียนีและนีลเส็น เอนเนอร์จี โซลูชันส์ จำกัด</h1>
-                                <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mt-0.5">Christiani & Nielsen Energy Solutions Co., Ltd.</p>
+                                <h1 class="text-xl font-black text-slate-900 leading-tight">บริษัท คริสเตียนีและนีลเส็น เอนเนอร์จี โซลูชันส์ จำกัด</h1>
+                                <p class="text-[10px] font-bold text-slate-600 uppercase tracking-wide mt-0.5">CHRISTIANI & NIELSEN ENERGY SOLUTIONS CO., LTD.</p>
                             </div>
                         </div>
                         <div class="text-right">
-                            <h2 class="text-lg font-black text-[#20336B] tracking-wide" x-text="printData.type + ' STOCK SLIP'"></h2>
-                            <p class="text-xs font-mono font-bold text-slate-500 mt-0.5" x-text="'Ref ID: ' + printData.id"></p>
+                            <h2 class="text-base font-black text-[#20336B] tracking-wide" x-text="printData.type + ' STOCK SLIP'"></h2>
+                            <p class="text-[11px] font-bold text-slate-700 mt-1">Ref ID:</p>
+                            <p class="text-xs font-mono font-bold text-slate-800" x-text="printData.id"></p>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 text-xs text-slate-700">
+                    <!-- ข้อมูลผู้ทำรายการและเวลา -->
+                    <div class="grid grid-cols-2 gap-4 text-xs text-slate-800 leading-relaxed pt-1">
                         <div>
                             <p class="font-bold">ข้อมูลผู้ทำรายการ:</p>
-                            <p x-text="'ชื่อผู้เบิก/รับของ: ' + printData.user"></p>
-                            <p x-text="'สถานที่ไซต์งาน (Site): ' + (printData.site || 'N/A')"></p>
-                            <p class="font-bold text-blue-800" x-text="'วัตถุประสงค์: ' + (printData.purpose || 'Project')"></p>
+                            <p><span class="text-slate-600">ชื่อผู้เบิก/รับของ:</span> <span class="font-semibold" x-text="printData.user"></span></p>
+                            <p><span class="text-slate-600">สถานที่ไซต์งาน (Site):</span> <span class="font-semibold" x-text="printData.site || '-'"></span></p>
+                            <p class="font-bold text-blue-700"><span class="text-slate-600 font-normal">วัตถุประสงค์:</span> <span x-text="getLogPurpose(printData)"></span></p>
                         </div>
                         <div class="text-right">
                             <p class="font-bold">รายละเอียดเวลา:</p>
-                            <p x-text="'วันเวลาคีย์ระบบ: ' + printData.timestamp"></p>
-                            <p class="font-bold text-blue-700" x-text="'วันที่กำหนดรับ/เบิกจริง: ' + (printData.actionDate || printData.timestamp)"></p>
-                            <p x-text="'ประเภทธุรกรรม: ' + printData.txnType"></p>
+                            <p><span class="text-slate-600">วันเวลาคีย์ระบบ:</span> <span class="font-semibold" x-text="printData.timestamp"></span></p>
+                            <p class="font-bold text-blue-700"><span class="text-slate-600 font-normal">วันที่กำหนดรับ/เบิกจริง:</span> <span x-text="printData.actionDate || printData.timestamp"></span></p>
+                            <p><span class="text-slate-600">ประเภทธุรกรรม:</span> <span class="font-semibold" x-text="printData.txnType"></span></p>
                         </div>
                     </div>
 
-                    <table class="w-full text-xs text-left border-collapse border border-slate-300">
+                    <!-- ตารางรายการวัสดุอุปกรณ์ -->
+                    <table class="w-full text-xs text-left border-collapse border border-slate-300 mt-2">
                         <thead>
-                            <tr class="bg-slate-100 text-slate-800 border-b border-slate-300 font-bold">
-                                <th class="border border-slate-300 p-2">รหัส</th>
-                                <th class="border border-slate-300 p-2">รายการวัสดุ</th>
-                                <th class="border border-slate-300 p-2">รุ่นอุปกรณ์</th>
-                                <th class="border border-slate-300 p-2 text-right">จำนวน</th>
-                                <th class="border border-slate-300 p-2">หน่วยนับ</th>
+                            <tr class="bg-white text-slate-800 border-b border-slate-300 font-bold">
+                                <th class="border border-slate-300 p-2 text-center w-[12%]">รหัส</th>
+                                <th class="border border-slate-300 p-2 w-[35%]">รายการวัสดุ</th>
+                                <th class="border border-slate-300 p-2 w-[33%]">รุ่นอุปกรณ์</th>
+                                <th class="border border-slate-300 p-2 text-right w-[10%]">จำนวน</th>
+                                <th class="border border-slate-300 p-2 text-center w-[10%]">หน่วยนับ</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="row in printData.items">
-                                <tr class="border-b border-slate-200">
-                                    <td class="border border-slate-300 p-2 font-mono font-bold" x-text="row.itemCode"></td>
-                                    <td class="border border-slate-300 p-2" x-text="row.name"></td>
-                                    <td class="border border-slate-300 p-2" x-text="row.model"></td>
-                                    <td class="border border-slate-300 p-2 text-right font-bold" x-text="row.qty"></td>
-                                    <td class="border border-slate-300 p-2" x-text="row.unit"></td>
+                                <tr class="border-b border-slate-300">
+                                    <td class="border border-slate-300 p-2 font-mono font-bold text-slate-800 text-center" x-text="row.itemCode"></td>
+                                    <td class="border border-slate-300 p-2 text-slate-800" x-text="row.name"></td>
+                                    <td class="border border-slate-300 p-2 text-slate-700" x-text="row.model"></td>
+                                    <td class="border border-slate-300 p-2 text-right font-bold text-slate-900" x-text="row.qty"></td>
+                                    <td class="border border-slate-300 p-2 text-center text-slate-800" x-text="row.unit"></td>
                                 </tr>
                             </template>
                         </tbody>
                     </table>
                 </div>
 
-                <div class="mt-auto pt-6 space-y-4">
-                    <div class="grid grid-cols-3 gap-6 text-xs text-center border-t border-slate-300 pt-6">
-                        <div class="flex flex-col items-center justify-end space-y-1.5">
-                            <p class="font-bold text-slate-800">ผู้ทำรายการเบิก / รับสินค้า</p>
-                            <div class="h-16 flex items-end justify-center w-full">
-                                <p class="text-slate-400 w-full">....................................................</p>
-                            </div>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="printData.user ? '( ' + printData.user + ' )' : '( ........................................ )'"></p>
-                            <p class="text-slate-500 text-[10px] mt-2">วันที่ ........ / ........ / .............</p>
+                <!-- ส่วนลายเซ็น 3 ช่องด้านล่างสุด (ตามแบบรูปเดิมเป๊ะ) -->
+                <div class="mt-auto pt-6 border-t border-slate-200">
+                    <div class="grid grid-cols-3 gap-6 text-xs text-center">
+                        <!-- ช่องที่ 1: ผู้ทำรายการ -->
+                        <div class="flex flex-col items-center justify-end">
+                            <p class="font-bold text-slate-800 mb-14">ผู้ทำรายการเบิก / รับสินค้า</p>
+                            <p class="text-slate-400 w-full mb-2">....................................................</p>
+                            <p class="font-semibold text-slate-800" x-text="printData.user ? '( ' + printData.user + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px] mt-1.5">วันที่ ........ / ........ / .............</p>
                         </div>
                         
-                        <div class="flex flex-col items-center justify-end space-y-1.5">
-                            <p class="font-bold text-slate-800">ผู้ตรวจสอบสินค้า</p>
-                            <div class="h-16 flex items-end justify-center w-full">
-                                <p class="text-slate-400 w-full">....................................................</p>
-                            </div>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="getSignatoryInspector(printData) ? '( ' + getSignatoryInspector(printData) + ' )' : '( ........................................ )'"></p>
-                            <p class="text-slate-500 text-[10px] mt-2">วันที่ ........ / ........ / .............</p>
+                        <!-- ช่องที่ 2: ผู้ตรวจสอบสินค้า (แยกตาม Project / O&M) -->
+                        <div class="flex flex-col items-center justify-end">
+                            <p class="font-bold text-slate-800 mb-14">ผู้ตรวจสอบสินค้า</p>
+                            <p class="text-slate-400 w-full mb-2">....................................................</p>
+                            <p class="font-semibold text-slate-800" x-text="getSignatoryInspector(printData) ? '( ' + getSignatoryInspector(printData) + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px] mt-1.5">วันที่ ........ / ........ / .............</p>
                         </div>
 
-                        <div class="flex flex-col items-end justify-end space-y-1.5">
-                            <p class="font-bold text-slate-800">ผู้อนุมัติ</p>
-                            <div class="h-16 flex items-end justify-center w-full">
-                                <p class="text-slate-400 w-full">....................................................</p>
-                            </div>
-                            <p class="font-semibold text-slate-800 mt-2" x-text="getSignatoryApprover(printData) ? '( ' + getSignatoryApprover(printData) + ' )' : '( ........................................ )'"></p>
-                            <p class="text-slate-500 text-[10px] mt-2">วันที่ ........ / ........ / .............</p>
+                        <!-- ช่องที่ 3: ผู้อนุมัติ (แยกตาม Project / O&M) -->
+                        <div class="flex flex-col items-center justify-end">
+                            <p class="font-bold text-slate-800 mb-14">ผู้อนุมัติ</p>
+                            <p class="text-slate-400 w-full mb-2">....................................................</p>
+                            <p class="font-semibold text-slate-800" x-text="getSignatoryApprover(printData) ? '( ' + getSignatoryApprover(printData) + ' )' : '( ........................................ )'"></p>
+                            <p class="text-slate-500 text-[10px] mt-1.5">วันที่ ........ / ........ / .............</p>
                         </div>
                     </div>
-
-                    <div class="w-full h-2 bg-[#20336B] rounded-full mt-4"></div>
                 </div>
                 
             </div>

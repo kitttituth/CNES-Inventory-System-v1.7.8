@@ -15,40 +15,43 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* การตั้งค่าการพิมพ์เอกสาร A4 [ข้อ 1, 2] */
+/* การตั้งค่าการพิมพ์เอกสาร A4 รูปแบบเดิม 1 หน้ากระดาษพอดีเป๊ะ */
 @media print {
     @page { 
         size: A4 portrait; 
-        margin: 0; /* คำสั่งลบ URL และ Header/Footer ของ Browser ออกอัตโนมัติ [ข้อ 2] */
+        margin: 0;
     }
     
     html, body {
         background: white !important;
         margin: 0 !important;
         padding: 0 !important;
-        height: 100vh;
-        overflow: hidden;
+        height: 100% !important;
+        overflow: hidden !important;
     }
 
     .no-print { display: none !important; }
 
-    /* ซ่อน PrintArea หลักหากกำลังปริ้น Log และในทางกลับกัน */
     body:not(.printing-log) #logPrintArea { display: none !important; }
     body.printing-log main > div:not(#logPrintArea) { display: none !important; }
     body.printing-log #logPrintArea { display: block !important; width: 100%; position: absolute; top: 0; left: 0; }
 
-    /* ยืดพื้นที่กระดาษ A4 เพื่อผลักบล็อกลายเซ็นลงไปติดด้านล่างสุดเสมอ [ข้อ 1] */
+    /* กรอบ A4 หน้าเดียว ไม่มีเส้นแถบสีน้ำเงิน ไม่ดันตกไปหน้าที่ 2 */
     #printable-area {
         position: absolute !important;
         left: 0 !important;
         top: 0 !important;
-        width: 100% !important;
-        height: 100vh !important;
-        min-height: 100vh !important;
-        padding: 12mm 12mm 8mm 12mm !important;
+        width: 210mm !important;
+        height: 290mm !important;
+        max-height: 292mm !important;
+        padding: 18mm 18mm 15mm 18mm !important;
         box-sizing: border-box !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: space-between !important;
+        background: white !important;
+        overflow: hidden !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
     }
 }
