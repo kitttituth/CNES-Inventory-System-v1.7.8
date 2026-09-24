@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CNES Inventory System v1.7.8</title>
-    <!-- เรียกใช้งาน Tailwind CSS และ Alpine.js -->
+    <!-- เรียกใช้งาน CSS และ Alpine.js สำหรับควบคุม UI ของแอปพลิเคชันอย่างปลอดภัย -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="script.js"></script>
@@ -125,8 +125,8 @@
                                 </div>
                             </div>
                         </div>
-                        <button @click="downloadCSV()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors" title="ดาวน์โหลดใบรายงานตรวจนับสต๊อกพัสดุในรูปแบบ Excel">
-                            📥 ส่งออกรายงานตรวจนับสต๊อก (Excel)
+                        <button @click="downloadCSV()" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 shadow-sm transition-colors" title="ดาวน์โหลดใบรายงานตรวจนับสต๊อกพัสดุในรูปแบบ Excel A3 แนวนอน">
+                            📥 ส่งออกรายงานตรวจนับสต๊อก (Excel A3)
                         </button>
                     </div>
 
@@ -179,8 +179,9 @@
                                                     <span x-text="item.qty"></span>
                                                     <span class="text-xs text-slate-500 font-normal ml-0.5" x-text="item.unit"></span>
                                                 </p>
+                                                <!-- แสดงยอดจองสีส้ม (จะแสดงเมื่อมีการจอง และหายไปอัตโนมัติเมื่อยืนยันเบิกจริง) -->
                                                 <template x-if="item.reserve_out > 0">
-                                                    <p class="text-[10px] text-amber-600 font-bold" x-text="'จองออก: ' + item.reserve_out"></p>
+                                                    <p class="text-[10px] text-amber-600 font-bold" x-text="'จองออก: ' + item.reserve_out + ' ' + item.unit"></p>
                                                 </template>
                                             </div>
                                         </div>
@@ -324,8 +325,8 @@
                                                 <span class="text-[10px] text-slate-400" x-text="'คีย์เมื่อ: ' + log.timestamp"></span>
                                             </td>
                                             <td class="px-6 py-4">
-                                                <span :class="log.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'" class="px-2.5 py-1 text-[10px] font-bold rounded-full border block w-fit" x-text="log.type + ' (' + log.txnType + ')'"></span>
-                                                <!-- วัตถุประสงค์ไม่เด้งกลับ -->
+                                                <span :class="log.type === 'IN' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'" class="px-2.5 py-1 text-[10px] font-bold rounded-full border block w-fit" 
+                                                      x-text="log.type + ' (' + (log.isConfirmedActual ? 'เบิกจริงแล้ว [เดิมจอง]' : (log.txnType === 'RESERVE' ? 'จองไว้' : 'เบิกจริง')) + ')'"></span>
                                                 <span class="text-[10px] font-bold text-slate-500 mt-1 block" x-text="'📌 ' + getLogPurpose(log)"></span>
                                             </td>
                                             <td class="px-6 py-4 text-slate-600 text-xs">
@@ -352,76 +353,116 @@
                                                 }" class="px-2.5 py-1 text-[10px] font-bold rounded-full border" x-text="log.status"></span>
                                             </td>
 
-                                            <!-- [ข้อ 1] ปุ่มดำเนินการ 2 แถว แถวละ 2 ปุ่มเป๊ะ (Grid 2x2) -->
-                                            <td class="px-6 py-4 text-right">
-                                                <div class="grid grid-cols-2 gap-1.5 w-60 ml-auto">
+                                            <!-- [คำสั่งใหม่] ปุ่มดำเนินการ 4 ปุ่มตามรูป + ปุ่ม Cross Cancel (✕) แบบที่ 2 ที่มุมบนขวา -->
+                                            <td class="px-6 py-4 text-right relative">
+                                                <div class="relative w-60 ml-auto pt-2.5">
                                                     
-                                                    <!-- แถวที่ 1 - ปุ่ม 1: สั่งพิมพ์เอกสาร -->
-                                                    <button @click="printLogData(log)" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="พิมพ์สลิปเอกสาร">
-                                                        🖨️ สั่งพิมพ์เอกสาร
-                                                    </button>
-                                                    
-                                                    <!-- แถวที่ 1 - ปุ่ม 2: ดู PDF (ถ้าไม่มีทำเป็นสีเทา) -->
+                                                    <!-- 🌟 ปุ่ม Cross Cancel (✕) แบบที่ 2: ลอยอยู่ที่มุมบนขวา สำหรับยกเลิกหลังอนุมัติด้วย PIN -->
+                                                    <template x-if="userRole === 'admin' && log.status === 'APPROVED'">
+                                                        <button @click="cancelApprovedLog(log.id)" 
+                                                                class="absolute -top-1.5 right-0 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-black transition-all shadow-sm z-10 cursor-pointer" 
+                                                                title="Cross Cancel: ยกเลิกรายการหลังอนุมัติและคืนสต๊อก (ต้องใส่ Admin PIN)">
+                                                            ✕
+                                                        </button>
+                                                    </template>
+
+                                                    <!-- 🌟 ตาราง 4 ปุ่มหลักตามรูปเดิมเป๊ะ 100% -->
+                                                    <div class="grid grid-cols-2 gap-1.5 w-full">
+                                                        
+                                                        <!-- แถวที่ 1 - ปุ่ม 1 (บนซ้าย): สั่งพิมพ์เอกสาร -->
+                                                        <button @click="printLogData(log)" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="พิมพ์สลิปเอกสาร">
+                                                            🖨️ สั่งพิมพ์เอกสาร
+                                                        </button>
+                                                        
+                                                        <!-- แถวที่ 1 - ปุ่ม 2 (บนขวา): แนบ PDF หรือ ดู PDF (ตามรูปเป๊ะ) -->
+                                                        <template x-if="hasPdf(log)">
+                                                            <button @click="viewPDF(log.pdfData, log.pdfName)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 truncate transition-colors" title="เปิดดูไฟล์ PDF">
+                                                                👁️ ดู / โหลด PDF
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="!hasPdf(log) && log.status !== 'CANCELLED'">
+                                                            <label class="w-full bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-colors" title="แนบไฟล์เอกสาร PDF">
+                                                                📎 แนบ PDF
+                                                                <input type="file" @change="uploadPDF($event, log.id)" class="hidden" accept="application/pdf">
+                                                            </label>
+                                                        </template>
+                                                        <template x-if="!hasPdf(log) && log.status === 'CANCELLED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการถูกยกเลิกแล้ว">
+                                                                📎 แนบ PDF
+                                                            </button>
+                                                        </template>
+
+                                                        <!-- แถวที่ 2 - ปุ่ม 3 (ล่างซ้าย): อนุมัติ / จ่ายจริง / อนุมัติแล้ว / อนุมัติไม่ได้ (ตามรูปเป๊ะ) -->
+                                                        <template x-if="userRole === 'admin' && log.status === 'PENDING'">
+                                                            <button @click="approveLog(log.id)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" 
+                                                                    :title="log.txnType === 'RESERVE' ? 'ยืนยันการจองสินค้า (ยังไม่ตัดสต๊อกจริง)' : 'อนุมัติปรับยอดสต๊อกจริง'">
+                                                                <span x-text="log.txnType === 'RESERVE' ? '✅ ยืนยันการจอง' : '✅ อนุมัติปรับยอด'"></span>
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="userRole === 'admin' && log.txnType === 'RESERVE' && log.status === 'APPROVED' && !log.isConfirmedActual">
+                                                            <button @click="confirmActual(log.id)" class="w-full bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="ยืนยันการเบิกสินค้าจริง (ตัดสต๊อกและลบยอดจองบน Dashboard)">
+                                                                📦 ยืนยันการเบิกจริง
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="userRole === 'admin' && (log.status === 'APPROVED' && (log.txnType === 'ACTUAL' || log.isConfirmedActual))">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้อนุมัติ/เบิกจ่ายจริงเรียบร้อยแล้ว">
+                                                                ✅ อนุมัติแล้ว
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="userRole === 'admin' && log.status === 'CANCELLED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้ถูกยกเลิกแล้ว">
+                                                                ⛔ อนุมัติไม่ได้
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="userRole === 'admin' && log.status === 'EXPIRED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้หมดอายุ 31 วัน">
+                                                                ⏳ หมดอายุ
+                                                            </button>
+                                                        </template>
+                                                        <template x-if="userRole !== 'admin'">
+                                                            <button disabled class="w-full bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="สิทธิ์เฉพาะ Admin">
+                                                                🔒 เฉพาะ Admin
+                                                            </button>
+                                                        </template>
+
+                                                        <!-- แถวที่ 2 - ปุ่ม 4 (ล่างขวา): ยกเลิก / ยกเลิกแล้ว (ตามรูปเป๊ะ) -->
+                                                        <!-- 1. ก่อนอนุมัติ (PENDING): กดยกเลิกได้เลย -->
+                                                        <template x-if="userRole === 'admin' && log.status === 'PENDING'">
+                                                            <button @click="cancelLog(log.id)" class="w-full bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="ยกเลิกรายการนี้ก่อนอนุมัติ">
+                                                                ❌ ยกเลิก
+                                                            </button>
+                                                        </template>
+                                                        <!-- 2. หลังอนุมัติ (APPROVED): แสดงเป็นปุ่มสีเทา ไม่ให้กดซ้ำตรงนี้ ป้องกันการกดผิด -->
+                                                        <template x-if="userRole === 'admin' && log.status === 'APPROVED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="อนุมัติแล้ว หากต้องการยกเลิกให้กดปุ่ม ✕ (Cross Cancel) ที่มุมบนขวา">
+                                                                ❌ ยกเลิกไม่ได้
+                                                            </button>
+                                                        </template>
+                                                        <!-- 3. เมื่อถูกยกเลิกแล้ว (CANCELLED): แสดงปุ่มสีเทา ยกเลิกแล้ว ตามรูปเป๊ะ -->
+                                                        <template x-if="userRole === 'admin' && log.status === 'CANCELLED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้ถูกยกเลิกไปแล้ว">
+                                                                ❌ ยกเลิกแล้ว
+                                                            </button>
+                                                        </template>
+                                                        <!-- 4. เมื่อหมดอายุ (EXPIRED) -->
+                                                        <template x-if="userRole === 'admin' && log.status === 'EXPIRED'">
+                                                            <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้หมดอายุ">
+                                                                ⏳ หมดอายุ
+                                                            </button>
+                                                        </template>
+                                                        <!-- 5. กรณีไม่ใช่ Admin -->
+                                                        <template x-if="userRole !== 'admin'">
+                                                            <button disabled class="w-full bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="สิทธิ์เฉพาะ Admin">
+                                                                🔒 เฉพาะ Admin
+                                                            </button>
+                                                        </template>
+
+                                                    </div>
+
                                                     <template x-if="hasPdf(log)">
-                                                        <button @click="viewPDF(log.pdfData, log.pdfName)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 truncate transition-colors" title="เปิดดูไฟล์ PDF">
-                                                            👁️ ดู / โหลด PDF
-                                                        </button>
+                                                        <span class="text-[9px] text-slate-400 font-mono mt-1 block truncate max-w-[240px] text-right" x-text="log.pdfName" :title="log.pdfName"></span>
                                                     </template>
-                                                    <template x-if="!hasPdf(log)">
-                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="ยังไม่มีไฟล์ PDF แนบ">
-                                                            👁️ ไม่มี PDF
-                                                        </button>
-                                                    </template>
-
-                                                    <!-- แถวที่ 2 - ปุ่ม 3: แนบ PDF (ถ้ามีแล้วล็อคเป็นสีเทาห้ามอัพซ้ำ) -->
-                                                    <template x-if="!hasPdf(log)">
-                                                        <label class="w-full bg-slate-700 hover:bg-slate-800 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 cursor-pointer transition-colors" title="แนบไฟล์เอกสาร PDF">
-                                                            📎 แนบ PDF
-                                                            <input type="file" @change="uploadPDF($event, log.id)" class="hidden" accept="application/pdf">
-                                                        </label>
-                                                    </template>
-                                                    <template x-if="hasPdf(log)">
-                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="มีไฟล์แล้ว ไม่สามารถอัปโหลดซ้ำได้">
-                                                            📎 แนบแล้ว (ห้ามซ้ำ)
-                                                        </button>
-                                                    </template>
-
-                                                    <!-- แถวที่ 2 - ปุ่ม 4: อนุมัติ / สถานะ (สีเทาเมื่อกดไม่ได้) -->
-                                                    <template x-if="userRole === 'admin' && log.status === 'PENDING'">
-                                                        <button @click="approveLog(log.id)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="อนุมัติรายการและปรับปรุงสต๊อก">
-                                                            ✅ อนุมัติปรับยอด
-                                                        </button>
-                                                    </template>
-                                                    <template x-if="userRole === 'admin' && log.txnType === 'RESERVE' && log.status === 'APPROVED'">
-                                                        <button @click="confirmActual(log.id)" class="w-full bg-sky-600 hover:bg-sky-700 text-white text-[10px] font-bold py-1.5 px-2 rounded shadow-sm flex items-center justify-center gap-1 transition-colors" title="ปรับยอดจากการจองเป็นการเบิกจริง">
-                                                            📦 อัปเดตจ่ายจริง
-                                                        </button>
-                                                    </template>
-                                                    <template x-if="userRole === 'admin' && log.txnType === 'ACTUAL' && log.status === 'APPROVED'">
-                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้อนุมัติเรียบร้อยแล้ว ไม่สามารถกดซ้ำได้">
-                                                            ✅ อนุมัติแล้ว
-                                                        </button>
-                                                    </template>
-                                                    <template x-if="userRole === 'admin' && log.status === 'CANCELLED'">
-                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้ถูกยกเลิกไปแล้ว">
-                                                            ❌ ยกเลิกแล้ว
-                                                        </button>
-                                                    </template>
-                                                    <template x-if="userRole === 'admin' && log.status === 'EXPIRED'">
-                                                        <button disabled class="w-full bg-slate-200 text-slate-400 border border-slate-300 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="รายการนี้หมดอายุ">
-                                                            ⏳ หมดอายุ
-                                                        </button>
-                                                    </template>
-                                                    <template x-if="userRole !== 'admin'">
-                                                        <button disabled class="w-full bg-slate-100 text-slate-400 border border-slate-200 text-[10px] font-bold py-1.5 px-2 rounded flex items-center justify-center gap-1 cursor-not-allowed" title="สิทธิ์เฉพาะ Admin">
-                                                            🔒 เฉพาะ Admin
-                                                        </button>
-                                                    </template>
-
                                                 </div>
-                                                <template x-if="hasPdf(log)">
-                                                    <span class="text-[9px] text-slate-400 font-mono mt-1 block truncate max-w-[240px] text-right" x-text="log.pdfName" :title="log.pdfName"></span>
-                                                </template>
                                             </td>
 
                                         </tr>
@@ -524,7 +565,7 @@
                         </div>
                     </div>
 
-                    <!-- แบบฟอร์มลงทะเบียนพัสดุ: สามารถพิมพ์ระบุรหัสวัสดุเอง หรือกดปุ่มรหัสอัตโนมัติ -->
+                    <!-- แบบฟอร์มลงทะเบียนพัสดุ: กำหนดรหัสและราคาต่อหน่วยได้ -->
                     <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
                         <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                             <h3 class="font-bold text-slate-800 text-sm">➕ ลงทะเบียนบันทึกรหัสวัสดุใหม่</h3>
@@ -573,6 +614,10 @@
                                 <label class="block text-xs font-bold text-slate-500 mb-1">จำนวนคงเหลือแรกเริ่ม</label>
                                 <input type="number" x-model.number="newItem.qty" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white">
                             </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">ราคาต่อหน่วย (Unit Price ฿)</label>
+                                <input type="number" step="0.01" x-model.number="newItem.unitPrice" placeholder="0.00" class="w-full border border-slate-300 rounded-lg p-2 text-xs bg-white text-right font-mono">
+                            </div>
                         </div>
                         <div class="flex justify-end pt-2">
                             <button @click="addMaterial()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-xs font-bold shadow-sm transition-colors">
@@ -581,12 +626,12 @@
                         </div>
                     </div>
 
-                    <!-- ตารางจัดการสต๊อก: สามารถแก้ไข/กำหนดรหัสพัสดุเดิมได้ทันที -->
+                    <!-- ตารางจัดการสต๊อก: สามารถแก้ไขรหัสพัสดุและราคาต่อหน่วยได้ทันที -->
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 flex-col sm:flex-row gap-3">
                                 <div>
                                     <h3 class="font-bold text-slate-800 text-sm">📋 บัญชีและประเภทพัสดุพ่วงสต๊อก</h3>
-                                    <span class="text-[10px] text-slate-500">สามารถคลิกแก้ไขรหัสพัสดุในช่องตารางเพื่อเปลี่ยนโค้ดได้โดยตรง</span>
+                                    <span class="text-[10px] text-slate-500">สามารถคลิกแก้ไขรหัสพัสดุและราคาต่อหน่วยในช่องตารางได้โดยตรง</span>
                                 </div>
                                 <button @click="resetDropdownDefaults()" class="text-xs text-red-500 hover:text-red-700 underline font-bold">กู้คืนตัวเลือกหมวดหมู่เริ่มต้น</button>
                         </div>
@@ -594,39 +639,49 @@
                             <table class="w-full text-left text-xs whitespace-nowrap">
                                 <thead>
                                     <tr class="bg-slate-900 text-white font-bold uppercase">
-                                        <th class="px-6 py-3">รหัสพัสดุ (คลิกแก้ไขได้)</th>
-                                        <th class="px-6 py-3">ชื่อรายละเอียดและรุ่น</th>
-                                        <th class="px-6 py-3">ตำแหน่งที่เก็บ</th>
-                                        <th class="px-6 py-3">คงเหลือคลังจริง</th>
-                                        <th class="px-6 py-3">ยอดจอง (Out/In)</th>
-                                        <th class="px-6 py-3">เอกสาร PO / ใบส่งของ</th>
-                                        <th class="px-6 py-3">การทำรายการ</th>
+                                        <th class="px-4 py-3">รหัสพัสดุ</th>
+                                        <th class="px-4 py-3">ชื่อรายละเอียดและรุ่น</th>
+                                        <th class="px-4 py-3">ตำแหน่งที่เก็บ</th>
+                                        <th class="px-4 py-3">คงเหลือคลังจริง</th>
+                                        <th class="px-4 py-3 text-right">ราคาต่อหน่วย (฿)</th>
+                                        <th class="px-4 py-3">ยอดจอง (Out/In)</th>
+                                        <th class="px-4 py-3">เอกสาร PO / ใบส่งของ</th>
+                                        <th class="px-4 py-3">การทำรายการ</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
                                     <template x-for="item in getSortedInventory()" :key="item.id">
                                         <tr class="hover:bg-slate-50">
-                                            <td class="px-6 py-3">
+                                            <td class="px-4 py-3">
                                                 <input type="text" 
                                                        x-model="item.itemCode" 
                                                        @change="updateItemCode(item)" 
-                                                       class="w-32 font-mono font-bold text-blue-600 bg-white border border-slate-200 hover:border-blue-400 focus:border-blue-600 rounded px-2 py-1 text-xs uppercase outline-none shadow-sm transition-colors" 
-                                                       title="คลิกเพื่อแก้ไขหรือกำหนดรหัสพัสดุนี้ใหม่">
+                                                       class="w-28 font-mono font-bold text-blue-600 bg-white border border-slate-200 hover:border-blue-400 focus:border-blue-600 rounded px-2 py-1 text-xs uppercase outline-none shadow-sm transition-colors" 
+                                                       title="คลิกเพื่อแก้ไขรหัสพัสดุ">
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-4">
                                                 <p class="font-bold text-slate-800" x-text="item.name"></p>
                                                 <span class="text-[10px] text-slate-400" x-text="'Model: ' + item.model"></span>
                                             </td>
-                                            <td class="px-6 py-4 text-slate-600" x-text="item.location || 'N/A'"></td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-4 text-slate-600" x-text="item.location || 'N/A'"></td>
+                                            <td class="px-4 py-4">
                                                 <span class="font-bold text-slate-800" x-text="item.qty"></span>
                                                 <span class="text-slate-500" x-text="item.unit"></span>
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-3 text-right">
+                                                <input type="number" 
+                                                       step="any" 
+                                                       x-model.number="item.unitPrice" 
+                                                       @change="saveData()" 
+                                                       class="w-24 border border-slate-200 hover:border-blue-400 focus:border-blue-600 rounded px-2 py-1 text-xs text-right bg-white outline-none font-mono" 
+                                                       placeholder="0.00"
+                                                       title="กำหนดราคาต่อหน่วย">
+                                            </td>
+                                            <td class="px-4 py-4">
                                                 <span class="text-orange-600 font-bold" x-text="'-' + (item.reserve_out || 0)"></span> / 
                                                 <span class="text-emerald-600 font-bold" x-text="'+' + (item.reserve_in || 0)"></span>
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-4">
                                                 <template x-if="hasMaterialPdf(item)">
                                                     <div>
                                                         <div class="flex items-center gap-1">
@@ -647,7 +702,7 @@
                                                     </label>
                                                 </template>
                                             </td>
-                                            <td class="px-6 py-4">
+                                            <td class="px-4 py-4">
                                                 <button @click="deleteMaterial(item.id)" class="text-red-600 hover:text-red-700 font-bold">🗑️ ลบ</button>
                                             </td>
                                         </tr>
